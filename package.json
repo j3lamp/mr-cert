@@ -1,0 +1,23 @@
+{
+  "name": "mr-cert",
+  "version": "0.0.1",
+  "description": "A simple certificate generation and management server.",
+  "main": "index.js",
+  "dependencies": {
+    "argh": "1.0.0",
+    "koa": "2.11.0",
+    "koa-router": "8.0.8",
+    "yargs": "15.3.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "cert",
+    "certificate",
+    "x509"
+  ],
+  "author": "John Lamp",
+  "license": "MIT"
+}
