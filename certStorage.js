@@ -53,7 +53,9 @@ module.exports = class CertStorage
             }
         }
 
-        // @todo Clean up any entries that don't ahve certs, keys on their own
+        await dir.close();
+
+        // @todo Clean up any entries that don't have certs, keys on their own
         //       are useless.
 
         return certs;

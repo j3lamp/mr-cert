@@ -70,7 +70,9 @@ async function start()
     const intermediate_storage = new CertStorage(path.join(storage_dir, INTERMEDIATE_DIR));
     const client_storage       = new CertStorage(path.join(storage_dir, CLIENT_DIR));
 
-    const server = new Server();
+    const server = new Server(root_storage,
+                              intermediate_storage,
+                              client_storage);
 
     server.listen(port);
     console.log(`Listening on port ${port}`);
