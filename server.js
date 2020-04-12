@@ -1,11 +1,32 @@
+const path = require("path");
+
 const Koa    = require("koa");
 const Router = require("koa-router");
 const send   = require("koa-send");
 
+const OpenSsl = require("./openSsl");
+
+
+function link(url_base, file_name, link_name)
+{
+    return `<a href="${url_base}/${file_name}">${link_name}</a>`;
+}
 
 function downloadLink(url_base, file_name, link_name)
 {
     return `<a href="${url_base}/${file_name}" download="${file_name}">${link_name}</a>`;
+}
+
+function maybeLink(url_base, url_end, link_name)
+{
+    if (url_end)
+    {
+        return `<a href="${url_base}/${url_end}">${link_name}</a>`;
+    }
+    else
+    {
+        return link_name;
+    }
 }
 
 
@@ -42,6 +63,10 @@ module.exports = class Server
             await send(context, context.params.file, {root: this.client_storage.storage_dir});
         });
 
+        router.get("/root/text/:file",         this.displayCert("Root",         this.root_storage));
+        router.get("/intermediate/text/:file", this.displayCert("Intermediate", this.intermediate_storage));
+        router.get("/client/text/:file",       this.displayCert("Client",       this.client_storage));
+
         this.http_server.use(router.routes())
                         .use(router.allowedMethods());
     }
@@ -73,7 +98,7 @@ module.exports = class Server
 
                 if (content_function)
                 {
-                    page += await content_function();
+                    page += await content_function(context);
                 }
 
                 page += `</div>`;
@@ -86,7 +111,8 @@ module.exports = class Server
 
     listCerts(cert_storage, url_base)
     {
-        url_base += "/files";
+        const text_url_base = url_base + "/text";
+        const file_url_base = url_base + "/files";
 
         return async () => {
             const certs = await cert_storage.getCerts();
@@ -98,14 +124,15 @@ module.exports = class Server
                 {
                     const properties = certs[cert_name];
 
-                    list += `<li>${cert_name} <span class="files">`;
+                    list += `<li>${cert_name}<span class="files">`;
                     if (properties.certificate)
                     {
-                        list += ` ` + downloadLink(url_base, properties.certificate, "Certificate");
+                        list += ` ` + link(text_url_base, properties.certificate, "View");
+                        list += ` ` + downloadLink(file_url_base, properties.certificate, "Certificate");
                     }
                     if (properties.key)
                     {
-                        list += ` ` + downloadLink(url_base, properties.key, "Key");
+                        list += ` ` + downloadLink(file_url_base, properties.key, "Key");
                     }
                     list += `</span></li>`;
                 }
@@ -114,5 +141,26 @@ module.exports = class Server
 
             return list;
         };
+    }
+
+    displayCert(set_name, cert_storage)
+    {
+        return this.buildPage(`${set_name} Certificate Content`,
+                              async (context) => {
+                                  const cert_name = context.params.file;
+                                  const cert_path = path.join(cert_storage.storage_dir, cert_name);
+
+                                  let cert_text = await OpenSsl.getText(cert_path);
+                                  if (cert_text)
+                                  {
+                                      cert_text = `<pre>${cert_text}</pre>`;
+                                  }
+                                  else
+                                  {
+                                      cert_text = `<strong>Error reading the certificate file.</strong>`;
+                                  }
+
+                                  return cert_text;
+                              });
     }
 };

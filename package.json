@@ -8,6 +8,7 @@
     "koa": "2.11.0",
     "koa-router": "8.0.8",
     "koa-send": "5.0.0",
+    "mz": "2.7.0",
     "yargs": "15.3.1"
   },
   "devDependencies": {},
