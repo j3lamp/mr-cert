@@ -5,6 +5,7 @@ const yargs = require("yargs");
 
 const AppError    = require("./appError");
 const CertStorage = require("./certStorage");
+const OpenSsl     = require("./openSsl");
 const Server      = require("./server");
 
 async function ensureDir(path)
@@ -44,12 +45,18 @@ async function ensureDir(path)
 const ROOT_DIR         = "root_certs";
 const INTERMEDIATE_DIR = "intermediate_certs";
 const CLIENT_DIR       = "client_certs";
+const SCRATCH_DIR      = "_scratch_";
+const ALL_DIRS         = [ROOT_DIR,
+                          INTERMEDIATE_DIR,
+                          CLIENT_DIR,
+                          SCRATCH_DIR];
 
 async function start()
 {
     const parser = yargs
           .demandOption("storage-dir")
-          .describe("storage-dir", "The directory in which CA files will be stored.")
+          .describe("storage-dir", "The directory in which CA files will be stored.")
+          .demandOption("port")
           .number("port")
           .describe("port", "The port the server will use.");
 
@@ -59,20 +66,21 @@ async function start()
     const port        = arguments.port;
 
     await ensureDir(storage_dir);
-    for (const dir of [ROOT_DIR, INTERMEDIATE_DIR, CLIENT_DIR])
+    for (const dir of ALL_DIRS)
     {
         await ensureDir(path.join(storage_dir, dir));
     }
-    console.log("");
 
     console.log(`Loading files from ${storage_dir}`);
     const root_storage         = new CertStorage(path.join(storage_dir, ROOT_DIR));
     const intermediate_storage = new CertStorage(path.join(storage_dir, INTERMEDIATE_DIR));
     const client_storage       = new CertStorage(path.join(storage_dir, CLIENT_DIR));
 
-    const server = new Server(root_storage,
-                              intermediate_storage,
-                              client_storage);
+    const open_ssl = new OpenSsl(path.join(storage_dir, SCRATCH_DIR));
+    const server   = new Server(root_storage,
+                                intermediate_storage,
+                                client_storage,
+                                open_ssl);
 
     server.listen(port);
     console.log(`Listening on port ${port}`);

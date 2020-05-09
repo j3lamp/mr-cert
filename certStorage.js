@@ -1,5 +1,5 @@
-const path = require("path");
 const fs   = require("fs").promises;
+const path = require("path");
 
 const AppError = require("./appError");
 
@@ -59,5 +59,64 @@ module.exports = class CertStorage
         //       are useless.
 
         return certs;
+    }
+
+    async getCert(name)
+    {
+        let cert = null;
+
+        const dir = await fs.opendir(this.storage_dir);
+
+        let entry;
+        while (entry = await dir.read())
+        {
+            if (entry.isFile())
+            {
+                const extension = path.extname(entry.name);
+                if (path.basename(entry.name, extension) == name)
+                {
+                    const is_certificate = CERTIFICATE_EXTENSION == extension;
+                    const is_key         = KEY_EXTENSION         == extension;
+                    if (is_certificate || is_key)
+                    {
+                        if (!cert)
+                        {
+                            cert = {};
+                        }
+
+                        if (is_certificate)
+                        {
+                            cert.certificate = entry.name;
+                        }
+                        else if (is_key)
+                        {
+                            cert.key = entry.name;
+                        }
+                        else
+                        {
+                            AppError.weShouldNeverGetHere();
+                        }
+                    }
+                }
+            }
+        }
+
+        await dir.close();
+
+        return cert;
+    }
+
+    async storeCert(name, certificate_path, key_path)
+    {
+        const certificate_name = `${name}${CERTIFICATE_EXTENSION}`;
+        await fs.rename(certificate_path, path.join(this.storage_dir,
+                                                    certificate_name));
+        if (key_path)
+        {
+            await fs.rename(key_path, path.join(this.storage_dir,
+                                                `${name}${KEY_EXTENSION}`));
+        }
+
+        return certificate_name;
     }
 };

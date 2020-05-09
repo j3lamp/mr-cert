@@ -1,0 +1,246 @@
+/* http://meyerweb.com/eric/tools/css/reset/
+   v2.0 | 20110126
+   License: none (public domain)
+*/
+
+html, body, div, span, applet, object, iframe,
+h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+a, abbr, acronym, address, big, cite, code,
+del, dfn, em, img, ins, kbd, q, s, samp,
+small, strike, strong, sub, sup, tt, var,
+b, u, i, center,
+dl, dt, dd, ol, ul, li,
+fieldset, form, label, legend,
+table, caption, tbody, tfoot, thead, tr, th, td,
+article, aside, canvas, details, embed,
+figure, figcaption, footer, header, hgroup,
+menu, nav, output, ruby, section, summary,
+time, mark, audio, video {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+/* HTML5 display-role reset for older browsers */
+article, aside, details, figcaption, figure,
+footer, header, hgroup, menu, nav, section {
+    display: block;
+}
+body {
+    line-height: 1.5;
+}
+ol, ul {
+    list-style: none;
+}
+blockquote, q {
+    quotes: none;
+}
+blockquote:before, blockquote:after,
+q:before, q:after {
+    content: '';
+    content: none;
+}
+table {
+    border-collapse: collapse;
+    border-spacing: 0;
+}
+
+html
+{
+    height: 100%;
+}
+/* End CSS Reset */
+
+body
+{
+    background: #626065;
+    font-family: Helvetica, Arial;
+
+    position: relative;
+    min-height: 100%;
+    margin: 0;
+    margin-left: 1em;
+    margin-right: 1em;
+    padding: 0;
+}
+
+header
+{
+    text-align: center;
+    color: black;
+
+    padding-top: 3ex;
+    padding-bottom: 2ex;
+}
+
+h1
+{
+    font-size: 300%;
+}
+
+nav
+{
+    float: right;
+    width: 15em;
+}
+
+nav li
+{
+    list-style: none;
+    background: black;
+    padding-top: 1ex;
+    padding-left: 1em;
+    padding-bottom: 1ex;
+    margin-bottom: 2ex;
+}
+
+nav a,
+.content a
+{
+    color: #eeeeec;
+    text-decoration: none;
+}
+
+nav a svg,
+.content a svg
+{
+    color: #d3d7cf;
+}
+
+nav a:hover,
+.content a:hover
+{
+    text-decoration: underline dotted;
+}
+
+.content
+{
+    background: black;
+    color: #488391;
+
+    position: relative;
+    min-height: 50ex;
+    padding-top: 2ex;
+    padding-left: 1em;
+    padding-right: 1em;
+    padding-bottom: 2ex;
+    margin-left: 1em;
+    margin-right: 16em;
+
+    overflow-x: auto;
+}
+
+.content .empty
+{
+    margin-top: 0.224ex;
+    font-size: 450%;
+    text-align: center;
+    line-height: 1;
+    color: #0b0b0b;
+}
+
+.content li
+{
+    clear: both;
+}
+
+.files
+{
+    float: right;
+    margin-right: 2em;
+}
+
+.field_name
+{
+    padding-right: 0.5em;
+}
+
+.unit
+{
+    color: #36626C;
+    font-size: 90%;
+}
+
+.unit::before
+{
+    content: "("
+}
+
+.unit::after
+{
+    content: ")"
+}
+
+.optional::after
+{
+    content: " [optional]";
+
+    color: #888a85;
+    font-size: 90%;
+}
+
+.note
+{
+    color: #888a85;
+
+    margin-left: 2em;
+}
+
+.content nav
+{
+    float: none;
+    clear: both;
+    position: absolute;
+    bottom: 0;
+}
+
+.content input,
+.content select
+{
+    background: black;
+    color:      cyan;
+    border:     #2e3436 solid 1px;;
+}
+
+.content input:focus
+{
+    border-color: darkcyan;
+}
+
+.content input[type=submit]
+{
+    border-top: 2px solid #babdb6;
+    border-left: 2px solid #babdb6;
+    border-right: 2px solid #888a85;
+    border-bottom: 2px solid #888a85;
+    color: white;
+}
+
+.content input[type=submit]:active
+{
+    border-color: #555753;
+}
+
+/* We use this pseudo element to provide space for the absoluately positioned
+ * footer. This helps keep the footer at the bottom of the window for short
+ * pages while ensuring there is space for it on long pages without us
+ * introducing otherwise-unnecessary markup.
+ */
+body::after
+{
+    content:" "; /*Required otherwise has zero height regardless of what we set.*/
+    display: block;
+    height: 4ex;
+}
+
+footer
+{
+    text-align: right;
+    font-size: 80%;
+    line-height: 1;
+    color: #2e3436;
+
+    position: absolute;
+    right: 2em;
+    bottom: 0;
+    padding-bottom: 1ex;
+}
