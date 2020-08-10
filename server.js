@@ -70,9 +70,21 @@ module.exports = class Server
 
         let router = new Router();
 
-        router.get("/", this.buildPage("",`<div class="empty"><i class="fas fa-certificate empty"></i></div>`));
+        // router.get("/", this.buildPage("",`<div class="empty"><i class="fas fa-certificate empty"></i></div>`));
+        router.get("/", (context) => {
+            context.body = (`<html><head><title>Mr. Cert</title>` +
+                            `<link rel="stylesheet" type="text/css" href="/styles.css" />` +
+                            `</head><body><script src="index.js"></script>` +
+                            `</body></html>`);
+        });
         router.get("/styles.css", async (context, next) => {
-            await send(context, "styles.css", {root: __dirname});
+            await send(context, "styles.css", {root: path.join(__dirname, "styles")});
+        });
+        router.get("/index.js", async (context, next) => {
+            await send(context, "index.js", {root: path.join(__dirname, "dist")});
+        });
+        router.get("/index.js.map", async (context, next) => {
+            await send(context, "index.js.map", {root: path.join(__dirname, "dist")});
         });
         router.get("/fa/all.js", async (context, next) => {
             await send(context, "all.min.js", {root: __dirname});
