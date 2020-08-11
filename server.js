@@ -118,6 +118,10 @@ module.exports = class Server
         router.post("/client/create-cert-file", this.createCert(this.client_storage,
                                                                 "/client"));
 
+        router.get("/api/root", async (context, next) => {
+            context.body = await this.root_storage.getCerts();
+        });
+
         this.http_server.use(bodyParser());
         this.http_server.use(router.routes())
                         .use(router.allowedMethods());

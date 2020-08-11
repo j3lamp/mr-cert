@@ -118,13 +118,28 @@ nav a:hover,
     text-decoration: underline dotted;
 }
 
+@keyframes spin
+{
+    from {transform:rotate(0deg);}
+    to   {transform:rotate(360deg);}
+}
+
+.spinner
+{
+    animation-name:            spin;
+    animation-duration:        1500ms;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+}
+
 .content
 {
     background: black;
     color:      #488391;
+    fill:       #488391;
 
     position:       relative;
-    min-height:     50ex;
+    min-height:     60ex;
     padding-top:    2ex;
     padding-left:   1em;
     padding-right:  1em;
@@ -135,19 +150,30 @@ nav a:hover,
     overflow-x: auto;
 }
 
-.content .empty
+.content .empty,
+.content .loading
 {
     text-align: center;
+    padding-top: 10ex;
+    padding-bottom: 10ex;
+}
+
+.content .empty svg,
+.content .loading svg
+{
+    height:        40ex;
 }
 
 .content .empty svg
 {
     color: #0b0b0b;
     fill:  #0b0b0b;
+}
 
-    height:        45ex;
-    margin-top:    2.5ex;
-    margin-bottom: 2.5ex;
+.content .loading svg
+{
+    color: #babdb6;
+    fill:  #babdb6;
 }
 
 .content li
