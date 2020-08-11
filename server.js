@@ -63,6 +63,9 @@ module.exports = class Server
         this.root_storage         = root_storage;
         this.intermediate_storage = intermediate_storage;
         this.client_storage       = client_storage;
+        this.storage = {root: root_storage,
+                        intermediate: intermediate_storage,
+                        client: client_storage};
         this.open_ssl             = open_ssl;
 
 
@@ -86,41 +89,60 @@ module.exports = class Server
         router.get("/index.js.map", async (context, next) => {
             await send(context, "index.js.map", {root: path.join(__dirname, "dist")});
         });
-        router.get("/fa/all.js", async (context, next) => {
-            await send(context, "all.min.js", {root: __dirname});
-        });
 
-        router.get("/root",         this.buildPage("CA Roots",            this.listCerts(this.root_storage,         "/root")));
-        router.get("/intermediate", this.buildPage("CA Intermediates",    this.listCerts(this.intermediate_storage, "/intermediate")));
-        router.get("/client",       this.buildPage("Client Certificates",
-                                                   [this.listCerts(this.client_storage, "/client"),
-                                                    this.clientActions("/client")]));
+        // router.get("/root",         this.buildPage("CA Roots",            this.listCerts(this.root_storage,         "/root")));
+        // router.get("/intermediate", this.buildPage("CA Intermediates",    this.listCerts(this.intermediate_storage, "/intermediate")));
+        // router.get("/client",       this.buildPage("Client Certificates",
+        //                                            [this.listCerts(this.client_storage, "/client"),
+        //                                             this.clientActions("/client")]));
 
-        router.get("/root/files/:file", async (context, next) => {
-            await send(context, context.params.file, {root: this.root_storage.storage_dir});
-        });
-        router.get("/intermediate/files/:file", async (context, next) => {
-            await send(context, context.params.file, {root: this.intermediate_storage.storage_dir});
-        });
-        router.get("/client/files/:file", async (context, next) => {
-            await send(context, context.params.file, {root: this.client_storage.storage_dir});
-        });
+        // router.get("/root/files/:file", async (context, next) => {
+        //     await send(context, context.params.file, {root: this.root_storage.storage_dir});
+        // });
+        // router.get("/intermediate/files/:file", async (context, next) => {
+        //     await send(context, context.params.file, {root: this.intermediate_storage.storage_dir});
+        // });
+        // router.get("/client/files/:file", async (context, next) => {
+        //     await send(context, context.params.file, {root: this.client_storage.storage_dir});
+        // });
 
-        router.get("/root/text/:file",         this.displayCert("Root",         this.root_storage));
-        router.get("/intermediate/text/:file", this.displayCert("Intermediate", this.intermediate_storage));
-        router.get("/client/text/:file",       this.displayCert("Client",       this.client_storage));
+        // router.get("/root/text/:file",         this.displayCert("Root",         this.root_storage));
+        // router.get("/intermediate/text/:file", this.displayCert("Intermediate", this.intermediate_storage));
+        // router.get("/client/text/:file",       this.displayCert("Client",       this.client_storage));
 
-        router.get("/client/create-cert", this.buildPage("Create Client Certificate",
-                                                         this.createCertForm("/client",
-                                                                             true,
-                                                                             true)));
+        // router.get("/client/create-cert", this.buildPage("Create Client Certificate",
+        //                                                  this.createCertForm("/client",
+        //                                                                      true,
+        //                                                                      true)));
 
-        router.post("/client/create-cert-file", this.createCert(this.client_storage,
-                                                                "/client"));
+        // router.post("/client/create-cert-file", this.createCert(this.client_storage,
+        //                                                         "/client"));
 
-        router.get("/api/root", async (context, next) => {
-            context.body = await this.root_storage.getCerts();
-        });
+        for (const type in this.storage)
+        {
+            router.get(`/api/${type}`, async (context, next) => {
+                context.body = await this.storage[type].getCerts();
+            });
+
+            router.get(`/api/${type}/text/:file`, async (context, next) => {
+                const cert_name = context.params.file;
+                const cert_path = path.join(this.storage[type].storage_dir,
+                                            cert_name);
+
+                const cert_text = await this.open_ssl.getText(cert_path);
+                if (cert_text)
+                {
+                    context.body = cert_text;
+                }
+            });
+
+            router.get(`/files/${type}/:file`, async (context, next) => {
+                await send(context,
+                           context.params.file,
+                           {root: this.storage[type].storage_dir});
+            });
+        }
+
 
         this.http_server.use(bodyParser());
         this.http_server.use(router.routes())

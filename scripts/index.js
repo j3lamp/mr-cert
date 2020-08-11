@@ -5,18 +5,27 @@ import m from "mithril";
 import Icons from "./icons.js"
 
 
+const CERT_TYPES = {root:         "CA Roots",
+                    intermediate: "CA Intermediates",
+                    client:       "Client Certificates"};
+
+
 let root  = document.body;
 let state = {ready: false};
 
 class Page
 {
-    view()
+    view(vnode)
     {
+        let nav_content = [];
+        for (const type in CERT_TYPES)
+        {
+            nav_content.push(m("li", m(m.route.Link, {href: `/${type}`}, CERT_TYPES[type])));
+        }
+
         return [m("header", m("h1", "Mr. Cert")),
-                m("nav", m("ul", [m("li", m(m.route.Link, {href: "/root"}, "CA Roots")),
-                                  m("li", m("a", "CA Intermediates")),
-                                  m("li", m("a", "Client Certificates"))])),
-                m("div", {class: "content"}, this.content()),
+                m("nav", m("ul", nav_content)),
+                m("div", {class: "content"}, this.content(vnode)),
                 m("footer", "The preferred certificate authority of Dark Helmet.")];
     }
 
@@ -49,14 +58,33 @@ function downloadLink(url_base, file_name, link_name, icon=null)
 
 class LoadingPage extends Page
 {
-    oninit()
+    oninit(vnode)
     {
-        state = {ready: false};
+        state = {_ready:  false,
+                 _failed: false,
+                 _attrs:  vnode.attrs};
 
-        this.request().then(() => {
-            state.ready = true;
-            m.redraw()
-        });
+        this.request(vnode).then(
+            function success()
+            {
+                state._ready = true;
+                m.redraw();
+            },
+            function failure()
+            {
+                state._failed = true;
+                m.redraw();
+            });
+    }
+
+    onupdate(vnode)
+    {
+        if (state._attrs != vnode.attrs)
+        {
+            // We need to load new data, so we will treat this the same as
+            // initialization.
+            this.oninit(vnode);
+        }
     }
 
     request()
@@ -64,11 +92,16 @@ class LoadingPage extends Page
         return Promise.resolve();
     }
 
-    content()
+    content(vnode)
     {
-        if (state.ready)
+        if (state._ready)
         {
-            return this.loadedContent();
+            return this.loadedContent(vnode);
+        }
+        if (state._failed)
+        {
+            //! @todo Make this nicer.
+            return m("strong", 404);
         }
         else
         {
@@ -87,17 +120,20 @@ class LoadingPage extends Page
 
 class CertList extends LoadingPage
 {
-    request()
+    request(vnode)
     {
         return (m.request({method: "GET",
-                           url:    "/api/root"})
+                           url:    `/api/${vnode.attrs.type}`})
                 .then((data) => {
                     state.certificates = data;
                 }));
     }
 
-    loadedContent()
+    loadedContent(vnode)
     {
+        const text_route_base = `/${vnode.attrs.type}/text`;
+        const file_url_base   = `/files/${vnode.attrs.type}`;
+
         let certs = [];
         for (const cert_name in state.certificates)
         {
@@ -108,11 +144,11 @@ class CertList extends LoadingPage
                 let cert = null;
                 if (properties.certificate)
                 {
-                    cert = [" ", link("/root/text",
+                    cert = [" ", link(text_route_base,
                                       properties.certificate,
                                       "View",
                                       "eye"),
-                            " ", downloadLink("/root/files",
+                            " ", downloadLink(file_url_base,
                                               properties.certificate,
                                               "Certificate",
                                               "certificate")];
@@ -120,7 +156,7 @@ class CertList extends LoadingPage
                 let key  = null;
                 if (properties.key)
                 {
-                    key = [" ", downloadLink("/root/files",
+                    key = [" ", downloadLink(file_url_base,
                                              properties.key,
                                              "Key",
                                              "key")];
@@ -135,8 +171,36 @@ class CertList extends LoadingPage
     }
 };
 
+class CertText extends LoadingPage
+{
+    request(vnode)
+    {
+        const {type, certificate} = vnode.attrs;
+
+        return (m.request({method:       "GET",
+                         url:          `api/${type}/text/${certificate}`,
+                         responseType: "text"})
+                .then((data) => {
+                    state.certificate_text = data;
+                }));
+    }
+
+    loadedContent(vnode)
+    {
+        if (state.certificate_text)
+        {
+            return m("pre", state.certificate_text);
+        }
+        else
+        {
+            return m("strong", "Error reading the certificate file.");
+        }
+    }
+};
+
 
 m.route(root, "/", {
-    "/":     Blank,
-    "/root": CertList
+    "/":                        Blank,
+    "/:type":                   CertList,
+    "/:type/text/:certificate": CertText
 });
