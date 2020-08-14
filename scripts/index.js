@@ -5,9 +5,9 @@ import m from "mithril";
 import Icons from "./icons.js"
 
 
-const CERT_TYPES = {root:         "CA Roots",
-                    intermediate: "CA Intermediates",
-                    client:       "Client Certificates"};
+const CERT_TYPES = [{type: "root",         name: "CA Roots"},
+                    {type: "intermediate", name: "CA Intermediates"},
+                    {type: "client",       name: "Client Certificates"}];
 
 
 let root  = document.body;
@@ -18,9 +18,9 @@ class Page
     view(vnode)
     {
         let nav_content = [];
-        for (const type in CERT_TYPES)
+        for (const {type, name} of CERT_TYPES)
         {
-            nav_content.push(m("li", m(m.route.Link, {href: `/${type}`}, CERT_TYPES[type])));
+            nav_content.push(m("li", m(m.route.Link, {href: `/${type}`}, name)));
         }
 
         return [m("header", m("h1", "Mr. Cert")),
