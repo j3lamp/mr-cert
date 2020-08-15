@@ -14,14 +14,15 @@ module.exports = class CertStorage
         this.storage_dir = storage_dir;
     }
 
-    async getCerts()
+    async getCerts(max=Infinity)
     {
-        let certs = {};
+        let certs      = {};
+        let cert_count = 0;
 
         const dir = await fs.opendir(this.storage_dir);
 
         let entry;
-        while (entry = await dir.read())
+        while (cert_count < max && (entry = await dir.read()))
         {
             if (entry.isFile())
             {
@@ -48,6 +49,11 @@ module.exports = class CertStorage
                     else
                     {
                         AppError.weShouldNeverGetHere();
+                    }
+
+                    if (certs[name].certificate && certs[name].key)
+                    {
+                        ++cert_count;
                     }
                 }
             }

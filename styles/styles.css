@@ -63,6 +63,11 @@ body
     padding: 0;
 }
 
+svg
+{
+    height: 2ex;
+}
+
 header
 {
     text-align: center;
@@ -104,6 +109,7 @@ nav a svg,
 .content a svg
 {
     color: #d3d7cf;
+    fill:  #d3d7cf;
 }
 
 nav a:hover,
@@ -112,30 +118,62 @@ nav a:hover,
     text-decoration: underline dotted;
 }
 
+@keyframes spin
+{
+    from {transform:rotate(0deg);}
+    to   {transform:rotate(360deg);}
+}
+
+.spinner
+{
+    animation-name:            spin;
+    animation-duration:        1500ms;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+}
+
 .content
 {
     background: black;
-    color: #488391;
+    color:      #488391;
+    fill:       #488391;
 
-    position: relative;
-    min-height: 50ex;
-    padding-top: 2ex;
-    padding-left: 1em;
-    padding-right: 1em;
+    position:       relative;
+    min-height:     60ex;
+    padding-top:    2ex;
+    padding-left:   1em;
+    padding-right:  1em;
     padding-bottom: 2ex;
-    margin-left: 1em;
-    margin-right: 16em;
+    margin-left:    1em;
+    margin-right:   16em;
 
     overflow-x: auto;
 }
 
-.content .empty
+.content .empty,
+.content .loading
 {
-    margin-top: 0.224ex;
-    font-size: 450%;
     text-align: center;
-    line-height: 1;
+    padding-top: 10ex;
+    padding-bottom: 10ex;
+}
+
+.content .empty svg,
+.content .loading svg
+{
+    height:        40ex;
+}
+
+.content .empty svg
+{
     color: #0b0b0b;
+    fill:  #0b0b0b;
+}
+
+.content .loading svg
+{
+    color: #babdb6;
+    fill:  #babdb6;
 }
 
 .content li
