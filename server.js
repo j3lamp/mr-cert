@@ -63,9 +63,9 @@ module.exports = class Server
         this.root_storage         = root_storage;
         this.intermediate_storage = intermediate_storage;
         this.client_storage       = client_storage;
-        this.storage = {root: root_storage,
+        this.storage = {root:         root_storage,
                         intermediate: intermediate_storage,
-                        client: client_storage};
+                        client:       client_storage};
         this.open_ssl             = open_ssl;
 
 
@@ -142,6 +142,37 @@ module.exports = class Server
                            {root: this.storage[type].storage_dir});
             });
         }
+
+        router.post("/client/create-cert-file", async (context, next) => {
+            const cert_name = await this.createClientCert(context.request.body);
+
+            if (cert_name)
+            {
+                context.body = {new_cert: cert_name};
+            }
+            else
+            {
+                context.status = 500;
+            }
+        });
+
+        router.get('/api/have_certs', async (context, next) => {
+            const types = JSON.parse(context.request.query.types);
+            let have_certs = false;
+            for (const type of types)
+            {
+                if ( type in this.storage)
+                {
+                    const certs = await this.storage[type].getCerts(1);
+                    if (Object.keys(certs).length > 0)
+                    {
+                        have_certs = true;
+                        break;
+                    }
+                }
+            }
+            context.body = {have_certs: have_certs};
+        });
 
 
         this.http_server.use(bodyParser());
@@ -402,5 +433,35 @@ module.exports = class Server
                 context.status = 500;
             }
         };
+    }
+
+    async createClientCert(parameters)
+    {
+        const signer_storage = this.storage[parameters.signer.type];
+        let   cert           = await signer_storage.getCert(parameters.signer.name);
+        if (!cert)
+        {
+            return false;
+        }
+        cert.certificate = path.join(signer_storage.storage_dir, cert.certificate);
+        cert.key         = path.join(signer_storage.storage_dir, cert.key);
+
+        const name = await this.open_ssl.makeClientCert(parameters.name,
+                                                        cert.certificate,
+                                                        cert.key,
+                                                        parameters.key_length,
+                                                        parameters.digest,
+                                                        parameters.lifetime,
+                                                        parameters.country,
+                                                        parameters.state,
+                                                        parameters.locality,
+                                                        parameters.organization,
+                                                        parameters.organizational_unit,
+                                                        parameters.e_mail,
+                                                        parameters.common_name,
+                                                        parameters.domain_names,
+                                                        this.storage.client);
+
+        return name;
     }
 };

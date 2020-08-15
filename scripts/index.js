@@ -2,12 +2,27 @@
 
 import m from "mithril";
 
+const CountryCodes = require("../countryCodes");
+
 import Icons from "./icons.js"
 
 
 const CERT_TYPES = [{type: "root",         name: "CA Roots"},
                     {type: "intermediate", name: "CA Intermediates"},
                     {type: "client",       name: "Client Certificates"}];
+
+function getCertTypeName(search_type)
+{
+    for (const {type, name} of CERT_TYPES)
+    {
+        if (type == search_type)
+        {
+            return name;
+        }
+    }
+
+    return null;
+}
 
 
 let root  = document.body;
@@ -118,15 +133,51 @@ class LoadingPage extends Page
 };
 
 
+function getSuperiorTypes(inferior_type)
+{
+    let superior_types = [];
+
+    for (const {type} of CERT_TYPES)
+    {
+        if (type == inferior_type)
+        {
+            break;
+        }
+        else
+        {
+            superior_types.push(type);
+        }
+    }
+
+    return superior_types;
+}
+
 class CertList extends LoadingPage
 {
     request(vnode)
     {
-        return (m.request({method: "GET",
-                           url:    `/api/${vnode.attrs.type}`})
-                .then((data) => {
-                    state.certificates = data;
-                }));
+        let requests = [m.request({method: "GET",
+                                   url:    `/api/${vnode.attrs.type}`})
+                        .then((data) => {
+                            state.certificates = data;
+                        })];
+
+        const superior_types = getSuperiorTypes(vnode.attrs.type);
+        if (superior_types.length > 0)
+        {
+            const encoded_types = encodeURIComponent(JSON.stringify(superior_types));
+            requests.push(m.request({method: "GET",
+                                     url:    `/api/have_certs?types=${encoded_types}`})
+                          .then((data) => {
+                              state.can_create = data.have_certs;
+                          }));
+        }
+        else
+        {
+            state.can_create = true;
+        }
+
+        return Promise.all(requests);
     }
 
     loadedContent(vnode)
@@ -167,7 +218,16 @@ class CertList extends LoadingPage
             }
         }
 
-        return m("ul", {class: "cert-list"}, certs);
+        let controls = null;
+        if (state.can_create)
+        {
+            controls = m("nav", m("ul", m("li", link(`/${vnode.attrs.type}`,
+                                                     "create-cert",
+                                                     "Create Cert",
+                                                     "plus"))));
+        }
+
+        return m("ul", {class: "cert-list"}, [certs, controls]);
     }
 };
 
@@ -178,8 +238,8 @@ class CertText extends LoadingPage
         const {type, certificate} = vnode.attrs;
 
         return (m.request({method:       "GET",
-                         url:          `api/${type}/text/${certificate}`,
-                         responseType: "text"})
+                           url:          `api/${type}/text/${certificate}`,
+                           responseType: "text"})
                 .then((data) => {
                     state.certificate_text = data;
                 }));
@@ -198,9 +258,228 @@ class CertText extends LoadingPage
     }
 };
 
+const COUNTRY_OPTIONS = (() => {
+    let options = [];
+    for (const code in CountryCodes)
+    {
+        options.push({value: code, name: CountryCodes[code]});
+    }
+    return options;
+})();
+
+class CreateClientCert extends LoadingPage
+{
+    request(vnode)
+    {
+        state.form = {
+            name:                "",
+            signer:              "",
+            key_length:          "1024",
+            digest:              "sha256",
+            lifetime:            825,
+            country:             "US",
+            state:               "",
+            locality:            "",
+            organization:        "",
+            organizational_unit: "",
+            e_mail:              "",
+            common_name:         "",
+            domain_names:        []
+        };
+
+        state.signing_certs = {};
+
+        const superior_types = getSuperiorTypes("client");
+        const requests = superior_types.map((type) => {
+            return (m.request({method: "GET",
+                               url:    `/api/${type}`})
+                    .then((data) => {
+                        state.signing_certs[type] = data;
+                    }));
+        })
+
+        return (Promise.all(requests)
+                .then(() => {
+                    let signing_options = [];
+                    for (const type of superior_types)
+                    {
+                        let ca_options = [];
+                        for (const cert_name in state.signing_certs[type])
+                        {
+                            const value = JSON.stringify({type: type,
+                                                          name: cert_name});
+                            ca_options.push({value: value,
+                                             name:  cert_name});
+                        }
+
+                        signing_options.push({group:   getCertTypeName(type),
+                                              options: ca_options});
+                    }
+
+                    state.signing_certs = signing_options;
+                }));
+    }
+
+    field(name, input, ...rest)
+    {
+        return m("li", [m("span", {class: "field_name"}, name), input, ...rest]);
+    }
+
+    input(name, type="text")
+    {
+        let value         = null;
+        let handle_change = null;
+        if ("number" == type)
+        {
+            handle_change = function handleNumberChanged(event)
+            {
+                const new_value = parseInt(event.target.value, 10);
+                if (!isNaN(new_value))
+                {
+                    state.form[name] = new_value;
+                }
+            }
+        }
+        else if ("list" == type)
+        {
+            type = "text";
+
+            value = state.form[name].join(", ");
+            handle_change = function handleListChanged(event)
+            {
+                state.form[name] = event.target.value.split(/[^-.a-zA-Z0-9]+/);
+            }
+        }
+        else
+        {
+            handle_change = function handleTextChanged(event)
+            {
+                state.form[name] = event.target.value;
+            };
+        }
+
+        if (null == value)
+        {
+            value = state.form[name];
+        }
+
+        return m("input",
+                 {type:     type,
+                  value:    value,
+                  onchange: handle_change});
+    }
+
+    option(value, name=null, selected=false)
+    {
+        if (!name)
+        {
+            name = value;
+        }
+
+        return m("option", {value: value, selected: selected}, name);
+    }
+
+    makeOptions(options)
+    {
+        return options.map((option) => {
+            if (option.group && option.options)
+            {
+                return m("optgroup",
+                         {label: option.group},
+                         this.makeOptions(option.options));
+            }
+            else if(option.value && option.name)
+            {
+                return m("option", {value: option.value}, option.name);
+            }
+            else
+            {
+                return m("option", {value: option}, option);
+            }
+        });
+    }
+
+    select(name, values)
+    {
+        return m("select",
+                 {value: state.form[name],
+                  onchange: (event) => {
+                      state.form[name] = event.target.value;
+                  }},
+                 this.makeOptions(values));
+    }
+
+    submitForm()
+    {
+        try
+        {
+            let body = {...state.form};
+            body.signer     = JSON.parse(state.form.signer);
+            body.key_length = parseInt(state.form.key_length, 10);
+
+            if (!isNaN(body.key_length))
+            {
+                state._ready = false;
+                m.redraw();
+
+                m.request({method: "POST",
+                           url:    "/client/create-cert-file",
+                           body:   body})
+                    .then((data) => {
+                        m.route.set(`/client/text/${data.new_cert}`);
+                    })
+                    .error(() => {
+                        //! @todo display an error, ideally something useful...
+                        state.ready = true;
+                    })
+            }
+        }
+        finally
+        {
+            return false;
+        }
+    }
+
+    loadedContent(vnode)
+    {
+        // console.log(state.signing_certs);
+        return m("form", {action: "#", onsubmit: ()=>{return false}}, m("ul", [
+            this.field("Name", this.input("name")),
+            this.field("Signing Certificate Authority",
+                       this.select("signer", state.signing_certs)),
+            this.field(["Key Length ", m("span", {class: "unit"}, "bits")],
+                       this.select("key_length", ["1024",
+                                                  "2048",
+                                                  "4096"])),
+            this.field("Digest Algorithm",
+                       this.select("digest", ["sha1",
+                                              "sha224",
+                                              "sha256",
+                                              "sha384",
+                                              "sha512"])),
+            this.field(["Lifetime ", m("span", {class: "unit"}, "days")],
+                       this.input("lifetime", "number"),
+                       m("div", {class: "note"}, "Browsers will reject certificates with lifespans longer than 825 days.")),
+            this.field("Country",
+                       this.select("country", COUNTRY_OPTIONS)),
+            this.field("State",               this.input("state")),
+            this.field("Locality",            this.input("locality")),
+            this.field("Organization",        this.input("organization")),
+            this.field("Organizational Unit", this.input("organizational_unit")),
+            this.field("E-Mail Address",      this.input("e_mail")),
+            this.field("Common Name",         this.input("common_name")),
+            this.field("Subject Alternate Domain Names", this.input("domain_names", "list"))
+        ]),
+                 m("input", {type:    "submit",
+                             value:   "Create Certificate",
+                             onclick: this.submitForm}))
+    }
+};
+
 
 m.route(root, "/", {
     "/":                        Blank,
     "/:type":                   CertList,
-    "/:type/text/:certificate": CertText
+    "/:type/text/:certificate": CertText,
+    "/client/create-cert":      CreateClientCert
 });
