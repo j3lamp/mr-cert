@@ -442,7 +442,6 @@ class CreateClientCert extends LoadingPage
 
     loadedContent(vnode)
     {
-        // console.log(state.signing_certs);
         return m("form", {action: "#", onsubmit: ()=>{return false}}, m("ul", [
             this.field("Name", this.input("name")),
             this.field("Signing Certificate Authority",
