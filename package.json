@@ -20,7 +20,7 @@
   "scripts": {
     "build": "parcel build scripts/index.js",
     "watch": "parcel watch scripts/index.js",
-    "start": "node index.js --storage-dir test_ca --port 3000",
+    "start": "node index.js --storage-dir test_ca --scratch-dir _scratch_ --port 3000",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
