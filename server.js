@@ -29,10 +29,10 @@ module.exports = class Server
         let router = new Router();
 
         router.get("/", (context) => {
-            context.body = (`<html><head><title>Mr. Cert</title>` +
-                            `<link rel="stylesheet" type="text/css" href="/styles.css" />` +
-                            `</head><body><script src="index.js"></script>` +
-                            `</body></html>`);
+            context.body = ('<html><head><title>Mr. Cert</title>' +
+                            '<link rel="stylesheet" type="text/css" href="/styles.css" />' +
+                            '</head><body><script src="index.js"></script>' +
+                            '</body></html>');
         });
         router.get("/styles.css", async (context, next) => {
             await send(context, "styles.css", {root: path.join(__dirname, "styles")});
@@ -48,13 +48,22 @@ module.exports = class Server
         for (const type in this.storage)
         {
             router.get(`/api/${type}`, async (context, next) => {
-                context.body = await this.storage[type].getCerts();
+                let certs = await this.storage[type].getCerts();
+                for (const name in certs)
+                {
+                    let attributes = {...certs[name]};
+                    delete attributes.files;
+                    attributes.has_key = certs[name].files.includes("key");
+
+                    certs[name] = attributes;
+                }
+                context.body = certs;
             });
 
-            router.get(`/api/${type}/text/:file`, async (context, next) => {
-                const cert_name = context.params.file;
-                const cert_path = path.join(this.storage[type].storage_dir,
-                                            cert_name);
+            router.get(`/api/${type}/text/:name.crt`, async (context, next) => {
+                const cert_name = context.params.name;
+                const cert_path = this.storage[type].getFilePath(cert_name,
+                                                                 "certificate");
 
                 const cert_text = await this.open_ssl.getText(cert_path);
                 if (cert_text)
@@ -63,12 +72,33 @@ module.exports = class Server
                 }
             });
 
-            router.get(`/files/${type}/:file`, async (context, next) => {
+            router.get(`/files/${type}/:name.crt`, async (context, next) => {
+                const name = context.params.name;
                 await send(context,
-                           context.params.file,
-                           {root: this.storage[type].storage_dir});
+                           this.storage[type].getFilePath(name, "certificate"),
+                           {root: "/"});
+            });
+
+            router.get(`/files/${type}/:name.key`, async (context, next) => {
+                const name = context.params.name;
+                await send(context,
+                           this.storage[type].getFilePath(name, "key"),
+                           {root: "/"});
             });
         }
+
+        router.post("/root/create-cert-file", async (context, next) => {
+            const cert_name = await this.createRootCert(context.request.body);
+
+            if (cert_name)
+            {
+                context.body = {new_cert: `${cert_name}.crt`};
+            }
+            else
+            {
+                context.status = 500;
+            }
+        });
 
         router.post("/client/create-cert-file", async (context, next) => {
             const cert_name = await this.createClientCert(context.request.body);
@@ -112,6 +142,23 @@ module.exports = class Server
         this.http_server.listen(port);
     }
 
+
+    async createRootCert(parameters)
+    {
+        return await this.open_ssl.makeRootCert(parameters.name,
+                                                parameters.key_length,
+                                                parameters.digest,
+                                                parameters.lifetime,
+                                                parameters.common_name,
+                                                parameters.country,
+                                                parameters.state,
+                                                parameters.locality,
+                                                parameters.organization,
+                                                parameters.organizational_unit,
+                                                parameters.email_address,
+                                                parameters.intermediate_only,
+                                                this.storage.root);
+    }
 
     async createClientCert(parameters)
     {

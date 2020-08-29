@@ -49,6 +49,11 @@ const ALL_DIRS         = [ROOT_DIR,
                           INTERMEDIATE_DIR,
                           CLIENT_DIR];
 
+const REQUIRED_SIGNING_FILES = ["certificate",
+                                "key",
+                                "index",
+                                "serial"];
+
 async function start()
 {
     const parser = yargs
@@ -74,7 +79,7 @@ async function start()
     await ensureDir(scratch_dir);
 
     console.log(`Loading files from ${storage_dir}`);
-    const root_storage         = new CertStorage(path.join(storage_dir, ROOT_DIR));
+    const root_storage         = new CertStorage(path.join(storage_dir, ROOT_DIR), REQUIRED_SIGNING_FILES);
     const intermediate_storage = new CertStorage(path.join(storage_dir, INTERMEDIATE_DIR));
     const client_storage       = new CertStorage(path.join(storage_dir, CLIENT_DIR));
 

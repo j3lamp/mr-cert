@@ -4,6 +4,7 @@ import m from "mithril";
 
 const CountryCodes = require("../countryCodes");
 
+import Form  from "./form.js"
 import Icons from "./icons.js"
 
 
@@ -192,23 +193,21 @@ class CertList extends LoadingPage
             {
                 const properties = state.certificates[cert_name];
 
-                let cert = null;
-                if (properties.certificate)
-                {
-                    cert = [" ", link(text_route_base,
-                                      properties.certificate,
-                                      "View",
-                                      "eye"),
-                            " ", downloadLink(file_url_base,
-                                              properties.certificate,
-                                              "Certificate",
-                                              "certificate")];
-                }
+                const cert_file = `${cert_name}.crt`;
+                const cert = [" ", link(text_route_base,
+                                        cert_file,
+                                        "View",
+                                        "eye"),
+                              " ", downloadLink(file_url_base,
+                                                cert_file,
+                                                "Certificate",
+                                                "certificate")];
+
                 let key  = null;
-                if (properties.key)
+                if (properties.has_key)
                 {
                     key = [" ", downloadLink(file_url_base,
-                                             properties.key,
+                                             `${cert_name}.key`,
                                              "Key",
                                              "key")];
                 }
@@ -258,6 +257,8 @@ class CertText extends LoadingPage
     }
 };
 
+const KEY_LENGTH_OPTIONS = [2048, 4096, 8192];
+const DIGEST_ALGORITHM_OPTIONS = ["sha256", "sha384", "sha512"];
 const COUNTRY_OPTIONS = (() => {
     let options = [];
     for (const code in CountryCodes)
@@ -266,6 +267,76 @@ const COUNTRY_OPTIONS = (() => {
     }
     return options;
 })();
+
+class CreateRootCert extends LoadingPage
+{
+    request()
+    {
+        this.form = new Form("root_cert_form");
+
+        this.form.addInput("name", "Name");
+        this.form.addSelect("key_length",
+                            ["Key Length ", m("span", {class: "unit"}, "bits")],
+                            4096,
+                            KEY_LENGTH_OPTIONS);
+        this.form.addSelect("digest", "Digest", "sha256", DIGEST_ALGORITHM_OPTIONS);
+        this.form.addInput("lifetime",
+                           ["Lifetime", m("span", {class: "unit"}, "bits")],
+                           365 * 20 + 20 / 4,
+                           "number");
+        this.form.addSelect("country", "Country", "US", COUNTRY_OPTIONS);
+        this.form.addInput("state",               "State");
+        this.form.addInput("locality",            "Locality");
+        this.form.addInput("organization",        "Organization");
+        this.form.addInput("organizational_unit", "Organizational Unit");
+        this.form.addInput("email_address",       "E-Mail Address");
+        this.form.addInput("common_name",         "Common Name");
+        this.form.addCheckbox("intermediate_only",
+                              "Only use to sign intermediate certificates",
+                              false);
+
+        this.form.setSubmit("Create Certificate",
+                            () => { return this.submit(); });
+
+        return Promise.resolve();
+    }
+
+    submit()
+    {
+        try
+        {
+            let body = this.form.getValues();
+            body.key_length = parseInt(body.key_length, 10);
+
+            if (!isNaN(body.key_length))
+            {
+                state._ready = false;
+                m.redraw();
+
+                (m.request({method: "POST",
+                            url:    "/root/create-cert-file",
+                            body:   body})
+                 .then((data) => {
+                     m.route.set(`/root/text/${data.new_cert}`);
+                 })
+                 .catch(() => {
+                     //! @todo display an error, ideally something useful...
+                     state.ready = true;
+                 }));
+            }
+
+        }
+        finally
+        {
+            return false;
+        }
+    }
+
+    loadedContent()
+    {
+        return this.form.m();
+    }
+}
 
 class CreateClientCert extends LoadingPage
 {
@@ -480,5 +551,6 @@ m.route(root, "/", {
     "/":                        Blank,
     "/:type":                   CertList,
     "/:type/text/:certificate": CertText,
+    "/root/create-cert":        CreateRootCert,
     "/client/create-cert":      CreateClientCert
 });

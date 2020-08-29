@@ -190,6 +190,13 @@ nav a:hover,
 .field_name
 {
     padding-right: 0.5em;
+    padding-left:  0;
+}
+
+.reversed .field_name
+{
+    padding-right: 0;
+    padding-left:  0.5em;
 }
 
 .unit
