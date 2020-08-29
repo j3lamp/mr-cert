@@ -21,7 +21,10 @@ const verify = makeOpenSslFunction("verify");
 const x509   = makeOpenSslFunction("x509");
 
 
-module.exports = class OpenSsl
+/**
+ * A class for working with and using the `openssl` command.
+ */
+class OpenSsl
 {
     constructor(
         scratch_dir
@@ -45,11 +48,9 @@ module.exports = class OpenSsl
         }
     }
 
-    /*!
-     * @breif Creates a temporary directory, which is passed to the @a action
-     *        function.
+    /**
+     * Creates a temporary directory, which is passed to the @a action function.
      *
-     * @details
      * This function creates a temporary scratch directory and then provides the
      * path to the passed in @a action function. Once the @action function has
      * completed the scratch directory is deleted.
@@ -280,3 +281,5 @@ ${dns_list}`;
         }
     }
 };
+
+module.exports = OpenSsl;

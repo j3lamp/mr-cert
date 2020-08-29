@@ -1,7 +1,13 @@
-/*!
- * See <https://jamielinux.com/docs/openssl-certificate-authority/index.html>
- *     <https://jamielinux.com/docs/openssl-certificate-authority/appendix/root-configuration-file.html>
- *     <https://jamielinux.com/docs/openssl-certificate-authority/appendix/intermediate-configuration-file.html>
+/**
+ * @module OpenSslConfig
+ *
+ * @description
+ * Utilities for generating configuration files for use with the `openssl`
+ * command.
+ *
+ * @see <https://jamielinux.com/docs/openssl-certificate-authority/index.html>
+ * @see <https://jamielinux.com/docs/openssl-certificate-authority/appendix/root-configuration-file.html>
+ * @see <https://jamielinux.com/docs/openssl-certificate-authority/appendix/intermediate-configuration-file.html>
  */
 
 const COMMON_CONFIG = `[ policy_strict ]

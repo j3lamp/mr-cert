@@ -10,7 +10,10 @@ const KEY_EXTENSION         = ".key";
 const ATTRIBUTES_FILE_NAME  = "_attributes_";
 
 
-module.exports = class CertStorage
+/**
+ * A class that handles the storage of certificates and their associated files.
+ */
+class CertStorage
 {
     constructor(storage_dir, required_files=["certificate"])
     {
@@ -23,15 +26,14 @@ module.exports = class CertStorage
         return path.join(this.storage_dir, name, file);
     }
 
-    /*!
-     * @brief Get all certificates
+    /**
+     * Get all certificates
      *
-     * @details
      * Get the attributes and associated files for all certificates stored. The
      * files are listed in the 'files' attribute. If a certificate is missing
      * any of the required files it will not be listed.
      *
-     * @returns Array of Objects
+     * @returns {Object[]}
      */
     async getCerts(max=Infinity)
     {
@@ -153,15 +155,24 @@ module.exports = class CertStorage
         return cert;
     }
 
-    /*!
-     * @brief Appropriately stores certificates and associated files.
+    /**
+     * Appropriately stores certificates and associated files.
      *
-     * @details
-     * All files provided in @a paths are stored in a directory with @a name, if
-     * said directory doesn't already exist. @a paths must be an object in which
+     * All files provided in `paths` are stored in a directory with `name`, if
+     * said directory doesn't already exist. `paths` must be an object in which
      * the keys are the destination file name and the values are their current
-     * absolute paths. The @a paths object *must* have a key for every entry in
-     * the @a required_files array passed into the constructor.
+     * absolute paths. The `paths` object *must* have a key for every entry in
+     * the `required_files` array passed into the constructor.
+     *
+     * @param {string} name        The name under which to store this
+     *                             certificate and its associated files.
+     * @param {Object} paths       The paths of the files to be stored, and the
+     *                             keys by which to access them them later.
+     * @param {Object} attributes  Attributes to store with the files. This must
+     *                             be convertable to JSON.
+     *
+     * @returns {false|string}
+     *     The name used to store this certificate, or `false` if unsuccessful.
      */
     async storeCert(name, paths, attributes=null)
     {
@@ -191,3 +202,5 @@ module.exports = class CertStorage
         return name;
     }
 };
+
+module.exports = CertStorage;

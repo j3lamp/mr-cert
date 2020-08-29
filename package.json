@@ -14,6 +14,9 @@
   },
   "devDependencies": {
     "@mithril-icons/font-awesome": "1.2.0",
+    "docdash": "^1.2.0",
+    "jsdoc": "~3.6.5",
+    "jsdoc-export-default-interop": "^0.3.1",
     "mithril": "2.0.4",
     "parcel": "1.12.4"
   },
@@ -21,6 +24,7 @@
     "build": "parcel build client/index.js",
     "watch": "parcel watch client/index.js",
     "start": "node server/index.js --storage-dir test_ca --scratch-dir _scratch_ --port 3000",
+    "doc": "jsdoc --configure jsdoc_conf.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

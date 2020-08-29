@@ -116,7 +116,7 @@ class LoadingPage extends Page
         }
         if (state._failed)
         {
-            //! @todo Make this nicer.
+            /// @todo Make this nicer.
             return m("strong", 404);
         }
         else
@@ -320,7 +320,7 @@ class CreateRootCert extends LoadingPage
                      m.route.set(`/root/text/${data.new_cert}`);
                  })
                  .catch(() => {
-                     //! @todo display an error, ideally something useful...
+                     /// @todo display an error, ideally something useful...
                      state.ready = true;
                  }));
             }

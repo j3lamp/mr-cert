@@ -2,38 +2,36 @@
 
 import m from "mithril";
 
-
-/*!
- * @brief A class that manages a form for Mithril.
+/**
+ * A class that manages a form for Mithril.
  *
- * @details
  * This allows you to build a form once and let it handle itself with redraws as
  * the user interacts with it. First set up the form just once, then use the m()
  * functionto draw the form with Mithril. If the form is to be handled entirely
  * on the client-side or submitted via AJAX use the getValues() function to get
  * the values of every form element.
  *
- * To set up the form use the add*() functions. The @a name parameter is used
- * for the field's id and the key for the form values. The @a display_name is
- * used for the field's label. The @a initial* parameter sets the initial state
- * of the form field. The @a extra_function will be called each time the form is
- * drawn, the result will be placed after the field and its label. The fields
- * are drawn in a list in the order they are added.
+ * To set up the form use the add*() functions. The `name` parameter is used for
+ * the field's id and the key for the form values. The `display_name` is used
+ * for the field's label. The `initial`* parameter sets the initial state of the
+ * form field. The `extra_function` will be called each time the form is drawn,
+ * the result will be placed after the field and its label. The fields are drawn
+ * in a list in the order they are added.
  *
- * The @a base_id is used as the id for the form. For each of the fields the id
- * is created from the @a base_id as a prefix to the field's @a name.
+ * The `base_id` is used as the id for the form. For each of the fields the id
+ * is created from the `base_id` as a prefix to the field's `name`.
  *
- * @note You can use the result of Mithril's m() function for the @a display
- *       value. Remember, though, that this will only be called once and this
- *       should not rely on any input values.
+ * *Note:* You can use the result of Mithril's m() function for the `display`
+ * value. Remember, though, that this will only be called once and this should
+ * not rely on any input values.
  */
 export default class Form
 {
-    /*!
-     * @brief Create a new form.
+    /**
+     * Create a new form.
      *
-     * @param base_id string  The id of the form. This is also used as the
-     *                        prefix to the id's of the fields.
+     * @param {string} base_id  The id of the form. This is also used as the
+     *                          prefix to the id's of the fields.
      */
     constructor(base_id="m_form")
     {
@@ -43,39 +41,40 @@ export default class Form
         this._submit  = null;
     }
 
-    /*!
-     * @brief Get the values of all of the form's fields' values.
+    /**
+     * Get the values of all of the form's fields' values.
      *
-     * @returns  Object  The names of the fields are the keys and the field's
-     *                   values are the values.
+     * @returns {Object}
+     *     The names of the fields are the keys and the field's values are the
+     *     values.
      */
     getValues()
     {
         return {...this._values};
     }
 
-    /*!
-     * @brief Add a regular <input> field.
+    /**
+     * Add a regular `<input>` field.
      *
-     * @param name           string    The name and if of this field.
-     * @param display_name   string    The name to display in the <label> for
-     *                                 the user.
-     * @param initial_value  string    The value the field should have when the
-     *                                 form is first drawn.
-     * @param type           string    The type of the <input>, this is used as
-     *                                 the value for the element.
-     * @param extra_function function  A function that will be called every time
-     *                                 the filed is drawn. The result of this
-     *                                 function will be placed after the field
-     *                                 and its label.
+     * Generally the `type` parameter will accept any value the `<input>`
+     * element will. The exceptions are "checkbox", use the addCheckbox()
+     * function, and "submit", use the setSubmit() function. If the type is
+     * "number" the value will be handled via parseInt(). In addition there is
+     * the special type "list", this renders with a type of "text" but the value
+     * is separated into an Array and concantenated into a comma-seaprated list
+     * when displayed.
      *
-     * @par "type" Generally the type parameter will accept any value the
-     * <input> element will. The exceptions are "checkbox", use the
-     * addCheckbox() function, and "submit", use the setSubmit() function. If
-     * the type is "number" the value will be handled via parseInt(). In
-     * addition there is the special type "list", this renders with a type of
-     * "text" but the value is separated into an Array and concantenated into a
-     * comma-seaprated list when displayed.
+     * @param {string}   name            The name and if of this field.
+     * @param {string}   display_name    The name to display in the `<label>`
+     *                                   for the user.
+     * @param {string}   initial_value   The value the field should have when
+     *                                   the form is first drawn.
+     * @param {string}   type            The type of the `<input>`, this is used
+     *                                   as the value for the element.
+     * @param {function} extra_function  A function that will be called every
+     *                                   time the filed is drawn. The result of
+     *                                   this function will be placed after the
+     *                                   field and its label.
      */
     addInput(name, display_name, initial_value="", type="text", extra_function=null)
     {
@@ -140,18 +139,19 @@ export default class Form
         this._fields.push(field_spec);
     }
 
-    /*!
-     * @brief Add an <input type="checkbox"> field.
+    /**
+     * Add an `<input type="checkbox">` field.
      *
-     * @param name              string    The name and if of this field.
-     * @param display_name      string    The name to display in the <label> for
-     *                                    the user.
-     * @param initially_checked bool      Whether or not the checkbox should be
-     *                                    checked when the form is first drawn.
-     * @param extra_function    function  A function that will be called every
-     *                                    time the field is drawn. The result of
-     *                                    this function will be placed after the
-     *                                    field and its label.
+     * @param {string}   name               The name and if of this field.
+     * @param {string}   display_name       The name to display in the `<label>`
+     *                                      for the user.
+     * @param {bool}     initially_checked  Whether or not the checkbox should
+     *                                      be checked when the form is first
+     *                                      drawn.
+     * @param {function} extra_function     A function that will be called every
+     *                                      time the field is drawn. The result
+     *                                      of this function will be placed
+     *                                      after the field and its label.
      */
     addCheckbox(name, display_name, initially_checked, extra_function=null)
     {
@@ -182,31 +182,18 @@ export default class Form
         this._fields.push(field_spec);
     }
 
-    /*!
-     * @brief Add a <select> field and its <option> elements.
+    /**
+     * Add a `<select>` field and its `<option>` elements.
      *
-     * @param name           string    The name and if of this field.
-     * @param display_name   string    The name to display in the <label> for
-     *                                 the user.
-     * @param initial_value  string    The value the field should have when the
-     *                                 form is first drawn.
-     * @param options        Array     The options to list in the <select>
-     *                                 element.
-     * @param extra_function function  A function that will be called every time
-     *                                 the field is drawn. The result of this
-     *                                 function will be placed after the field
-     *                                 and its label.
+     * The `options` can be, in their simplest, an Array of items that
+     * implicitly convert to strings. In this case the the value and the
+     * displayed name of the option will be the same. Alternatively, each item
+     * can be an Object with keys 'name' and 'value'. The 'name' is used as the
+     * display name and the 'value' as the value. Lastly an Object with keys
+     * 'group' and 'options' will create an option group with the display name
+     * of the 'group' value and the 'options' containing the groups options.
      *
-     * @par options
-     * The options can be, in their simplest, an Array of items that implicitly
-     * convert to strings. In this case the the value and the displayed name of
-     * the option will be the same. Alternatively, each item can be an Object
-     * with keys 'name' and 'value'. The 'name' is used as the display name and
-     * the 'value' as the value. Lastly an Object with keys 'group' and
-     * 'options' will create an option group with the display name of the
-     * 'group' value and the 'options' containing the groups options.
-     *
-     * @par Example options
+     * Example options:
      * - Simple Array
      *   ```.js
      *   ["red", "green", "blue"]
@@ -251,6 +238,18 @@ export default class Form
      *     <option value="Strawberry">Strawberry</option>
      *   </optgroup>
      *   ```
+     *
+     * @param {string}   name            The name and if of this field.
+     * @param {string}   display_name    The name to display in the `<label>`
+     *                                   for the user.
+     * @param {string}   initial_value   The value the field should have when
+     *                                   the form is first drawn.
+     * @param {Array}    options         The options to list in the `<select>`
+     *                                   element.
+     * @param {function} extra_function  A function that will be called every
+     *                                   time the field is drawn. The result of
+     *                                   this function will be placed after the
+     *                                   field and its label.
      */
     addSelect(name, display_name, initial_value, options, extra_function=null)
     {
@@ -280,15 +279,15 @@ export default class Form
         this._fields.push(field_spec);
     }
 
-    /*!
-     * @brief Set up the submit button.
+    /**
+     * Set up the submit button.
      *
-     * @note If this is called multiple times only the last call will have an
-     *       effect. The form can only have one submit button.
+     * *Note:* If this is called multiple times only the last call will have an
+     * effect. The form can only have one submit button.
      *
-     * @param display_name     string    The name to display in the button.
-     * @param handler_function function  A function to be called when the button
-     *                                   is clicked.
+     * @param {string}   display_name      The name to display in the button.
+     * @param {function} handler_function  A function to be called when the
+     *                                     button is clicked.
      */
     setSubmit(display_name, handler_function)
     {
@@ -299,15 +298,15 @@ export default class Form
         };
     }
 
-    /*!
-     * @brief Reander the form for Mithril.
+    /**
+     * Reander the form for Mithril.
      *
-     * @details
-
      * This function renders the current version of the form for display via
      * Mithril. This should be called from your component's view() function.
      *
-     * @return's Vnode  A Mithril Vnode that represents this form.
+     * @returns {Vnode}  A Mithril Vnode that represents this form.
+     *
+     * @see https://mithril.js.org/hyperscript.html
      */
     m()
     {
@@ -349,11 +348,13 @@ export default class Form
                 submit);
     }
 
-    /*!
-     * @brief A helper function for rendering options for <select> elements.
+    /**
+     * A helper function for rendering options for `<select>` elements.
      *
-     * @warning To handle <optgroup> elements this function is recursive and
-     *          does not protect against cycles in @a options.
+     * **Warning:** To handle `<optgroup>` elements this function is recursive and
+     * does not protect against cycles in `options`.
+     *
+     * @private
      */
     static _makeOptions(options)
     {

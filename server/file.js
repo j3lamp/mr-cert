@@ -1,9 +1,19 @@
 const fs = require("fs").promises;
 
+/**
+ * @module File
+ */
 
 module.exports = {
-    /*!
-     * @brief Read the contents of a file directly.
+    /**
+     * Read the contents of a file directly.
+     *
+     * @param {string} file_path  The path, on disk, to the file to be read.
+     * @param {string} encoding   The encoding to use when reading the file.
+     *
+     * @returns {string|Buffer}
+     *     The contents of the file as a string if appropriate for the
+     *     `encoding` used otherwise as a Buffer.
      */
     readFile: async function readFile(file_path, encoding="utf8")
     {
@@ -26,8 +36,12 @@ module.exports = {
         }
     },
 
-    /*!
-     * @brief Write contents directly to a file.
+    /**
+     * Write contents directly to a file.
+     *
+     * @param {string}        file_path  The path, on disk, to the file to be
+     *                                   written.
+     * @param {string|Buffer} contents   The data to be written to the file.
      */
     writeFile: async function writeFile(file_path, contents)
     {

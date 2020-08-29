@@ -1,3 +1,5 @@
+"use strict"
+
 const path = require("path");
 const fs   = require("fs").promises;
 
@@ -65,11 +67,11 @@ async function start()
           .number("port")
           .describe("port", "The port the server will use.");
 
-    const arguments = parser.argv
+    const command_arguments = parser.argv
 
-    const storage_dir = path.resolve(arguments.storageDir);
-    const scratch_dir = path.resolve(arguments.scratchDir);
-    const port        = arguments.port;
+    const storage_dir = path.resolve(command_arguments.storageDir);
+    const scratch_dir = path.resolve(command_arguments.scratchDir);
+    const port        = command_arguments.port;
 
     await ensureDir(storage_dir);
     await Promise.all(ALL_DIRS.map((dir) => {
