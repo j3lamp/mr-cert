@@ -1,3 +1,5 @@
+"use strict"
+
 module.exports = {
     AD: "Andorra",
     AE: "United Arab Emirates",
