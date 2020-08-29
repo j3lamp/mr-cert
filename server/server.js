@@ -6,6 +6,10 @@ const Router     = require("koa-router");
 const send       = require("koa-send");
 
 
+const SCRIPTS_DIR = path.join(__dirname, "..", "dist");
+const STYLES_DIR  = path.join(__dirname, "..", "styles");
+
+
 module.exports = class Server
 {
     constructor(
@@ -35,13 +39,13 @@ module.exports = class Server
                             '</body></html>');
         });
         router.get("/styles.css", async (context, next) => {
-            await send(context, "styles.css", {root: path.join(__dirname, "styles")});
+            await send(context, "styles.css", {root: STYLES_DIR});
         });
         router.get("/index.js", async (context, next) => {
-            await send(context, "index.js", {root: path.join(__dirname, "dist")});
+            await send(context, "index.js", {root: SCRIPTS_DIR});
         });
         router.get("/index.js.map", async (context, next) => {
-            await send(context, "index.js.map", {root: path.join(__dirname, "dist")});
+            await send(context, "index.js.map", {root: SCRIPTS_DIR});
         });
 
 

@@ -2,7 +2,7 @@
 
 import m from "mithril";
 
-const CountryCodes = require("../countryCodes");
+const CountryCodes = require("../common/countryCodes");
 
 import Form  from "./form.js"
 import Icons from "./icons.js"

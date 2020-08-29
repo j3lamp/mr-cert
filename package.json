@@ -18,9 +18,9 @@
     "parcel": "1.12.4"
   },
   "scripts": {
-    "build": "parcel build scripts/index.js",
-    "watch": "parcel watch scripts/index.js",
-    "start": "node index.js --storage-dir test_ca --scratch-dir _scratch_ --port 3000",
+    "build": "parcel build client/index.js",
+    "watch": "parcel watch client/index.js",
+    "start": "node server/index.js --storage-dir test_ca --scratch-dir _scratch_ --port 3000",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
