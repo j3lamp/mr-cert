@@ -5,6 +5,7 @@
   "main": "index.js",
   "dependencies": {
     "argh": "1.0.0",
+    "async-mutex": "0.2.4",
     "koa": "2.11.0",
     "koa-bodyparser": "4.3.0",
     "koa-router": "8.0.8",

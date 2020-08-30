@@ -338,6 +338,107 @@ class CreateRootCert extends LoadingPage
     }
 }
 
+class CreateIntermediateCert extends LoadingPage
+{
+    request(vnode)
+    {
+        state.signing_certs = {};
+
+        const superior_types = getSuperiorTypes("intermediate");
+        const requests = superior_types.map((type) => {
+            return (m.request({method: "GET",
+                               url:    `/api/${type}`})
+                    .then((data) => {
+                        state.signing_certs[type] = data;
+                    }));
+        });
+
+        return (Promise.all(requests)
+                .then(() => {
+                    this.createForm(state.signing_certs);
+                }));
+    }
+
+    createForm(signing_certs)
+    {
+        let signing_options = [];
+        for (const type in signing_certs)
+        {
+            let ca_options = [];
+            for (const cert_name in signing_certs[type])
+            {
+                const value = JSON.stringify({type: type,
+                                              name: cert_name});
+                ca_options.push({value: value,
+                                 name:  cert_name});
+            }
+
+            signing_options.push({group:   getCertTypeName(type),
+                                  options: ca_options});
+        }
+
+        this.form = new Form("intermediate_cert_form");
+
+        this.form.addInput("name", "Name");
+        this.form.addSelect("signer", "Signing Certificate", "", signing_options);
+        this.form.addSelect("key_length",
+                            ["Key Length ", m("span", {class: "unit"}, "bits")],
+                            4096,
+                            KEY_LENGTH_OPTIONS);
+        this.form.addSelect("digest", "Digest", "sha256", DIGEST_ALGORITHM_OPTIONS);
+        this.form.addInput("lifetime",
+                           ["Lifetime", m("span", {class: "unit"}, "bits")],
+                           365 * 5 + 1,
+                           "number");
+        this.form.addSelect("country", "Country", "US", COUNTRY_OPTIONS);
+        this.form.addInput("state",               "State");
+        this.form.addInput("locality",            "Locality");
+        this.form.addInput("organization",        "Organization");
+        this.form.addInput("organizational_unit", "Organizational Unit");
+        this.form.addInput("email_address",       "E-Mail Address");
+        this.form.addInput("common_name",         "Common Name");
+
+        this.form.setSubmit("Create Certificate",
+                            () => { return this.submit(); });
+    }
+
+    submit()
+    {
+        try
+        {
+            let body = this.form.getValues();
+            body.signer     = JSON.parse(body.signer);
+            body.key_length = parseInt(body.key_length, 10);
+
+            if (!isNaN(body.key_length))
+            {
+                state._ready = false;
+                m.redraw();
+
+                m.request({method: "POST",
+                           url:    "/intermediate/create-cert-file",
+                           body:   body})
+                    .then((data) => {
+                        m.route.set(`/intermediate/text/${data.new_cert}`);
+                    })
+                    .error(() => {
+                        //! @todo display an error, ideally something useful...
+                        state.ready = true;
+                    });
+            }
+        }
+        finally
+        {
+            return false;
+        }
+    }
+
+    loadedContent()
+    {
+        return this.form.m();
+    }
+};
+
 class CreateClientCert extends LoadingPage
 {
     request(vnode)
@@ -548,9 +649,10 @@ class CreateClientCert extends LoadingPage
 
 
 m.route(root, "/", {
-    "/":                        Blank,
-    "/:type":                   CertList,
-    "/:type/text/:certificate": CertText,
-    "/root/create-cert":        CreateRootCert,
-    "/client/create-cert":      CreateClientCert
+    "/":                         Blank,
+    "/:type":                    CertList,
+    "/:type/text/:certificate":  CertText,
+    "/root/create-cert":         CreateRootCert,
+    "/intermediate/create-cert": CreateIntermediateCert,
+    "/client/create-cert":       CreateClientCert
 });

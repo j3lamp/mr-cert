@@ -7,6 +7,7 @@ const child_process = require("mz/child_process");
 const crypto        = require("mz/crypto");
 
 const Config = require("./openSslConfig.js");
+const File   = require("./file.js");
 
 
 function makeOpenSslFunction(subcommand)
@@ -82,34 +83,13 @@ class OpenSsl
         }
         finally
         {
-            if (scratch_dir && ! keep)
+            if (scratch_dir && !keep)
             {
                 await fs.rmdir(scratch_dir, {recursive: true});
             }
         }
 
         return result;
-    }
-
-    async writeFile(file_path, contents)
-    {
-        let file = null;
-        try
-        {
-            file = await fs.open(file_path, 'w')
-            await file.writeFile(contents);
-        }
-        catch (error)
-        {
-            console.log(error);
-        }
-        finally
-        {
-            if (file)
-            {
-                await file.close()
-            }
-        }
     }
 
     async makeRootCert(name,
@@ -136,7 +116,7 @@ class OpenSsl
                 const serial_path      = path.join(scratch_dir, "serial");
 
                 await Promise.all([
-                    this.writeFile(csr_conf_path,
+                    File.writeFile(csr_conf_path,
                                    Config.getCreateCaConfig(digest_algorithm,
                                                             common_name,
                                                             country,
@@ -161,11 +141,11 @@ class OpenSsl
                         "-out", certificate_path),
 
                     // Create empty index file
-                    this.writeFile(index_path, ""),
+                    File.writeFile(index_path, ""),
 
                     // Randomly initialize the serial number
                     (crypto.randomBytes(2).then((serial) => {
-                        this.writeFile(serial_path, serial.toString('hex'));
+                        File.writeFile(serial_path, serial.toString('hex'));
                     })),
                 ]);
 
@@ -179,7 +159,113 @@ class OpenSsl
         }
         catch (error)
         {
-            console.log(error);
+            console.error(error);
+            return false;
+        }
+    }
+
+    async makeIntermediateCert(name,
+                               signer,
+                               key_length,
+                               digest_algorithm,
+                               lifetime,
+                               common_name,
+                               country,
+                               state,
+                               locality,
+                               organization,
+                               organizational_unit,
+                               email_address,
+                               storage)
+    {
+        const signer_valid = signer.hasFiles("certificate",
+                                             "key",
+                                             "index",
+                                             "serial");
+        if (!signer_valid)
+        {
+            return false;
+        }
+
+        try
+        {
+            return await this.withScratchDir(async (scratch_dir) => {
+                const csr_conf_path    = path.join(scratch_dir, "csr.conf");
+                const csr_path         = path.join(scratch_dir, "csr");
+                const key_path         = path.join(scratch_dir, "key");
+                const ca_config_path   = path.join(scratch_dir, "ca.conf");
+                const certificate_path = path.join(scratch_dir, "certificate");
+                const chain_path       = path.join(scratch_dir, "chain");
+                const index_path       = path.join(scratch_dir, "index");
+                const serial_path      = path.join(scratch_dir, "serial");
+
+                await File.writeFile(csr_conf_path,
+                                     Config.getCreateCaConfig(digest_algorithm,
+                                                              common_name,
+                                                              country,
+                                                              state,
+                                                              locality,
+                                                              organization,
+                                                              organizational_unit,
+                                                              email_address));
+
+                await Promise.all([
+                    req("-new",
+                        "-config", csr_conf_path,
+                        "-extensions", "v3_ca",
+                        "-newkey", `rsa:${key_length}`,
+                        "-keyout", key_path,
+                        "-out", csr_path),
+
+                    File.writeFile(ca_config_path,
+                                   Config.getStrictCaConfig(
+                                       signer.getFilePath("index"),
+                                       signer.getFilePath("serial"),
+                                       signer.getFilePath("random"),
+                                       signer.getFilePath("key"),
+                                       signer.getFilePath("certificate"),
+                                       scratch_dir))
+                ]);
+
+                await Promise.all([
+                    ca("-batch",
+                       "-config", ca_config_path,
+                       "-extensions", "v3_intermediate_ca",
+                       "-days", lifetime,
+                       "-notext",
+                       "-md", digest_algorithm,
+                       "-in", csr_path,
+                       "-out", certificate_path),
+
+                    // Create empty index file
+                    File.writeFile(index_path, ""),
+
+                    // Randomly initialize the serial number
+                    (crypto.randomBytes(2).then((serial) => {
+                        File.writeFile(serial_path, serial.toString('hex'));
+                    })),
+                ]);
+
+                await Promise.all([
+                    File.readFile(certificate_path,                  null),
+                    File.readFile(signer.getFilePath("certificate"), null)
+                ])
+                    .then(async (certs) => {
+                        const chain = Buffer.concat(certs);
+                        await File.writeFile(chain_path, chain);
+                    });
+
+                return await storage.storeCert(name,
+                                               {certificate: certificate_path,
+                                                key:         key_path,
+                                                index:       index_path,
+                                                serial:      serial_path,
+                                                chain:       chain_path});
+            });
+        }
+        catch (error)
+        {
+            console.error(error);
             return false;
         }
     }
@@ -278,7 +364,7 @@ ${dns_list}`;
         }
         catch (error)
         {
-            console.log(error);
+            console.error(error);
             return false;
         }
     }

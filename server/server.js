@@ -106,6 +106,19 @@ module.exports = class Server
             }
         });
 
+        router.post("/intermediate/create-cert-file", async (context, next) => {
+            const cert_name = await this.createIntermediateCert(context.request.body);
+
+            if (cert_name)
+            {
+                context.body = {new_cert: `${cert_name}.crt`};
+            }
+            else
+            {
+                context.status = 500;
+            }
+        });
+
         router.post("/client/create-cert-file", async (context, next) => {
             const cert_name = await this.createClientCert(context.request.body);
 
@@ -164,6 +177,26 @@ module.exports = class Server
                                                 parameters.email_address,
                                                 parameters.intermediate_only,
                                                 this.storage.root);
+    }
+
+    async createIntermediateCert(parameters)
+    {
+        const signer_storage = this.storage[parameters.signer.type];
+        return await signer_storage.withCert(parameters.signer.name, async (cert) => {
+            return await this.open_ssl.makeIntermediateCert(parameters.name,
+                                                            cert,
+                                                            parameters.key_length,
+                                                            parameters.digest,
+                                                            parameters.lifetime,
+                                                            parameters.common_name,
+                                                            parameters.country,
+                                                            parameters.state,
+                                                            parameters.locality,
+                                                            parameters.organization,
+                                                            parameters.organizational_unit,
+                                                            parameters.email_address,
+                                                            this.storage.intermediate);
+        });
     }
 
     async createClientCert(parameters)

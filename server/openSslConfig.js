@@ -143,47 +143,46 @@ module.exports = {
         return config.join("\n");
     },
 
-    getStrictCaConfig: function getStrictCaConfig(root_directory)
+    getStrictCaConfig: function getStrictCaConfig(index_path,
+                                                  serial_path,
+                                                  rand_path,
+                                                  key_path,
+                                                  certificate_path,
+                                                  new_certs_dir)
     {
-        // Note: There's a good chance that some other parts need to be changed,
-        // or should be passed in from the command line.
+        let config = [
+            "[ca]",
+            "default_ca             = CA_default",
+            "",
+            "[ CA_default ]",
+            `new_certs_dir          = ${new_certs_dir}`,
+            `database               = ${index_path}`,
+            `serial                 = ${serial_path}`,
+            `RANDFILE               = ${rand_path}`,
+            "",
+            `private_key            = ${key_path}`,
+            `certificate            = ${certificate_path}`,
+            "",
+            "preserve               = no",
+            "policy                 = policy_strict",
+            "",
+            "x509_extensions        = v3_ca",
+            "",
+            "[ policy_strict ]",
+            "commonName             = supplied",
+            "organizationName       = match",
+            "organizationalUnitName = optional",
+            "countryName            = match",
+            "stateOrProvinceName    = match",
+            "localityName           = match",
+            "emailAddress           = optional",
+            "",
+            "[ v3_intermediate_ca ]",
+            "subjectKeyIdentifier   = hash",
+            "authorityKeyIdentifier = keyid:always,issuer",
+            "basicConstraints       = critical, CA:true, pathlen:0",
+            "keyUsage               = critical, digitalSignature, cRLSign, keyCertSign"];
 
-        let config = `# OpenSSL root CA configuration file.
-[ ca ]
-# man ca
-default_ca = CA_default
-
-[ CA_default ]
-# Directory and file locations.
-dir               = ${root_directory}
-certs             = $dir/certs
-crl_dir           = $dir/crl
-new_certs_dir     = $dir/newcerts
-database          = $dir/index.txt
-serial            = $dir/serial
-RANDFILE          = $dir/private/.rand
-
-# The root key and root certificate.
-private_key       = $dir/private/ca.key.pem
-certificate       = $dir/certs/ca.cert.pem
-
-# For certificate revocation lists.
-crlnumber         = $dir/crlnumber
-crl               = $dir/crl/ca.crl.pem
-crl_extensions    = crl_ext
-default_crl_days  = 30
-
-# SHA-1 is deprecated, so use SHA-2 instead.
-default_md        = sha256
-
-name_opt          = ca_default
-cert_opt          = ca_default
-default_days      = 375
-preserve          = no
-policy            = policy_strict`;
-        config += "\n\n";
-        config += COMMON_CONFIG;
-
-        return config;
+        return config.join("\n");
     }
 };

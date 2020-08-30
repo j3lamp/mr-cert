@@ -3,6 +3,8 @@
 const fs   = require("fs").promises;
 const path = require("path");
 
+const Mutex = require("async-mutex").Mutex;
+
 const AppError = require("./appError");
 const File     = require("./file");
 
@@ -13,20 +15,119 @@ const ATTRIBUTES_FILE_NAME  = "_attributes_";
 
 
 /**
+ * A class that provides access to a certificate for signing. Use
+ * {@link CertStorage#withCert} to obtain one of these.
+ */
+class Certificate
+{
+    /**
+     * @private
+     */
+    constructor(storage, name, certificate_entry)
+    {
+        if (certificate_entry)
+        {
+            for (const key in certificate_entry)
+            {
+                this[key] = certificate_entry[key];
+            }
+        }
+
+        this._storage = storage;
+        this._name    = name;
+    }
+
+    /**
+     * Determine if this certificate has the desired files.
+     *
+     * @param {string} files  The names of the desired files.
+     *
+     * @returns {bool}
+     *     `true` if the certificate has all of the desired files, `false`
+     *     otherwise.
+     */
+    hasFiles(...files)
+    {
+        if (!this.files)
+        {
+            return false;
+        }
+
+        return files.reduce(
+            (valid, required_file) => {
+                if (valid)
+                {
+                    const entry_valid = this.files.includes(required_file);
+                    valid = entry_valid;
+                }
+
+                return valid;
+            },
+            true);
+    }
+
+    /**
+     * Get the path to a particular file for this certificate.
+     *
+     * *Note:* This function does not check that the file actually exists.
+     *
+     * @param {string} file  The name of the desired file.
+     *
+     * @returns {string}
+     *     The path to the requested file.
+     */
+    getFilePath(file)
+    {
+        return this._storage.getFilePath(this._name, file);
+    }
+};
+
+
+/**
  * A class that handles the storage of certificates and their associated files.
  */
 class CertStorage
-{
+{/**
+     * Create an object to manage certificate storage.
+     *
+     * @param {string} storage_dir       The directory containing the
+     *                                   certificates.
+     * @param {string[]} required_files  The files aeach certificate entry must
+     *                                   contain to be considered valid.
+     */
     constructor(storage_dir, required_files=["certificate"])
     {
         this.storage_dir    = storage_dir;
         this.required_files = required_files;
+
+        this._mutex = {};
     }
 
+    /**
+     * Get the path to a particular file for a particular certificate.
+     *
+     * *Note:* This function does not check that the file actually exists.
+     *
+     * @param {string} name  The name of the certificate.
+     * @param {string} file  The name of the desired file.
+     *
+     * @returns {string}
+     *     The path to the requested file.
+     */
     getFilePath(name, file)
     {
         return path.join(this.storage_dir, name, file);
     }
+
+    /**
+     * An object containing a certificates attributes. The `file` entry is
+     * guranteed.
+     *
+     * @typedef {Object} CertStorage~CertificateEntry
+     * @property {string[]} files  The files in this certificate entry. Will
+     *                             contain at least those listed in
+     *                             `required_files`.
+     */
 
     /**
      * Get all certificates
@@ -35,7 +136,7 @@ class CertStorage
      * files are listed in the 'files' attribute. If a certificate is missing
      * any of the required files it will not be listed.
      *
-     * @returns {Object[]}
+     * @returns {CertStorage~CertificateEntry[]}
      */
     async getCerts(max=Infinity)
     {
@@ -50,60 +151,12 @@ class CertStorage
             if (entry.isDirectory())
             {
                 const entry_path = path.join(this.storage_dir, entry.name);
-                const entry_dir  = await fs.opendir(entry_path);
-
-                let attributes = {};
-                let files      = [];
-                let file;
-                while (file = await entry_dir.read())
+                const cert = await this._loadCert(entry_path);
+                if (cert)
                 {
-                    if (file.isFile())
-                    {
-                        if (ATTRIBUTES_FILE_NAME == file.name)
-                        {
-                            try
-                            {
-                                const attributes_path = path.join(entry_path,
-                                                                  file.name);
-                                const attributes_json =
-                                      await File.readFile(attributes_path);
-                                attributes = JSON.parse(attributes_json);
-                            }
-                            catch (error)
-                            {
-                                console.error(error);
-                            }
-                        }
-                        else
-                        {
-                            files.push(file.name);
-                        }
-                    }
+                    certs[entry.name] = cert;
+                    cert_count += 1;
                 }
-
-                const valid = this.required_files.reduce(
-                    (valid, required_file) => {
-                        if (valid)
-                        {
-                            const entry_valid = files.includes(required_file);
-                            if (!entry_valid)
-                            {
-                                console.log(`Entry "${entry.name}" is missing "${required_file}".`);
-                            }
-                            valid = entry_valid;
-                        }
-
-                        return valid;
-                    },
-                    true);
-
-                if (valid)
-                {
-                    attributes.files = files;
-                    certs[entry.name] = attributes
-                }
-
-                await entry_dir.close();
             }
         }
 
@@ -112,49 +165,50 @@ class CertStorage
         return certs;
     }
 
+    /**
+     * Get a particular certificate.
+     *
+     * @param {string} name  The name of the desired certificate.
+     *
+     * @returns {CertStorage~CertificateEntry|null}
+     *     If there is no certificate with `name` or the certificate does not
+     *     contain all of the `required_files` then `null` will be returned.
+     */
     async getCert(name)
     {
-        let cert = null;
+        return this._loadCert(path.join(this.storage_dir, name));
+    }
 
-        const dir = await fs.opendir(this.storage_dir);
+    /**
+     * This function is called once exclusive access to a certificate has been
+     * obtained.
+     *
+     * @callback CertStorage~certificateAction
+     * @param {Certificate} certificate  The requested certificate.
+     */
 
-        let entry;
-        while (entry = await dir.read())
+    /**
+     * Perform an action with exclusive access to a certificate.
+     *
+     * This should be used whenever a certificate is used in a way that modifies
+     * files. The most common example is signing a CSR as that updates several
+     * files on disk. This should also be used when revoking certificates.
+     *
+     * @param {CertStorage~certificateAction} action
+     *            This function will be called as soon as the certificate is
+     *            available for exclusive access.
+     */
+    async withCert(name, action)
+    {
+        if (undefined === this._mutex[name])
         {
-            if (entry.isFile())
-            {
-                const extension = path.extname(entry.name);
-                if (path.basename(entry.name, extension) == name)
-                {
-                    const is_certificate = CERTIFICATE_EXTENSION == extension;
-                    const is_key         = KEY_EXTENSION         == extension;
-                    if (is_certificate || is_key)
-                    {
-                        if (!cert)
-                        {
-                            cert = {};
-                        }
-
-                        if (is_certificate)
-                        {
-                            cert.certificate = entry.name;
-                        }
-                        else if (is_key)
-                        {
-                            cert.key = entry.name;
-                        }
-                        else
-                        {
-                            AppError.weShouldNeverGetHere();
-                        }
-                    }
-                }
-            }
+            this._mutex[name] = new Mutex();
         }
 
-        await dir.close();
-
-        return cert;
+        return await this._mutex[name].runExclusive(async () => {
+            const cert = new Certificate(this, name, await this.getCert(name));
+            return await action(cert);
+        });
     }
 
     /**
@@ -202,6 +256,87 @@ class CertStorage
         await Promise.all(tasks);
 
         return name;
+    }
+
+
+    /**
+     * Load a  certificate directory.
+     *
+     * @param {string} cert_dir_path  The directory containing the desired
+     *                                certificate's files.
+     *
+     * @returns {CertStorage~CertificateEntry|null}
+     *     If `cert_dir_path` doesn't exist or the certificate does not contain
+     *     all of the `required_files` then `null` will be returned.
+     *
+     * @private
+     */
+    async _loadCert(cert_dir_path)
+    {
+        let cert = null;
+
+        let dir = null;
+        try
+        {
+            dir = await fs.opendir(cert_dir_path);
+
+            let attributes = {};
+            let files      = [];
+            let file;
+            while (file = await dir.read())
+            {
+                if (file.isFile())
+                {
+                    if (ATTRIBUTES_FILE_NAME == file.name)
+                    {
+                        try
+                        {
+                            const attributes_path = path.join(cert_dir_path,
+                                                              file.name);
+                            const attributes_json =
+                                  await File.readFile(attributes_path);
+                            attributes = JSON.parse(attributes_json);
+                        }
+                        catch (error)
+                        {
+                            console.error(error);
+                        }
+                    }
+                    else
+                    {
+                        files.push(file.name);
+                    }
+                }
+            }
+
+            const valid = this.required_files.reduce(
+                (valid, required_file) => {
+                    if (valid)
+                    {
+                        const entry_valid = files.includes(required_file);
+                        valid = entry_valid;
+                    }
+
+                    return valid;
+                },
+                true);
+
+            if (valid)
+            {
+                attributes.files = files;
+
+                cert = attributes;
+            }
+        }
+        finally
+        {
+            if (dir)
+            {
+                await dir.close();
+            }
+        }
+
+        return cert;
     }
 };
 

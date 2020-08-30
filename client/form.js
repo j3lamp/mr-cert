@@ -363,7 +363,7 @@ export default class Form
             {
                 return m("optgroup",
                          {label: option.group},
-                         this.makeOptions(option.options));
+                         this._makeOptions(option.options));
             }
             else if(option.value && option.name)
             {
