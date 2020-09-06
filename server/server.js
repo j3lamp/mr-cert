@@ -17,15 +17,17 @@ module.exports = class Server
     constructor(
         root_storage,
         intermediate_storage,
+        server_storage,
         client_storage,
         open_ssl
     )
     {
-        this.root_storage         = root_storage;
-        this.intermediate_storage = intermediate_storage;
-        this.client_storage       = client_storage;
+        // this.root_storage         = root_storage;
+        // this.intermediate_storage = intermediate_storage;
+        // this.client_storage       = client_storage;
         this.storage = {root:         root_storage,
                         intermediate: intermediate_storage,
+                        server:       server_storage,
                         client:       client_storage};
         this.open_ssl             = open_ssl;
 

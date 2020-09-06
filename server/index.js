@@ -46,9 +46,11 @@ async function ensureDir(path)
 
 const ROOT_DIR         = "root_certs";
 const INTERMEDIATE_DIR = "intermediate_certs";
+const SERVER_DIR       = "server_certs";
 const CLIENT_DIR       = "client_certs";
 const ALL_DIRS         = [ROOT_DIR,
                           INTERMEDIATE_DIR,
+                          SERVER_DIR,
                           CLIENT_DIR];
 
 const REQUIRED_SIGNING_FILES = ["certificate",
@@ -83,11 +85,13 @@ async function start()
     console.log(`Loading files from ${storage_dir}`);
     const root_storage         = new CertStorage(path.join(storage_dir, ROOT_DIR), REQUIRED_SIGNING_FILES);
     const intermediate_storage = new CertStorage(path.join(storage_dir, INTERMEDIATE_DIR));
+    const server_storage       = new CertStorage(path.join(storage_dir, SERVER_DIR));
     const client_storage       = new CertStorage(path.join(storage_dir, CLIENT_DIR));
 
     const open_ssl = new OpenSsl(scratch_dir);
     const server   = new Server(root_storage,
                                 intermediate_storage,
+                                server_storage,
                                 client_storage,
                                 open_ssl);
 

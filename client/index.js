@@ -63,7 +63,7 @@ class CertList extends LoadingPage
         let certs = [];
         for (const cert_name in this.certificates)
         {
-            if (state.certificates.hasOwnProperty(cert_name))
+            if (this.certificates.hasOwnProperty(cert_name))
             {
                 const properties = this.certificates[cert_name];
 
