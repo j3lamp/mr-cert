@@ -25,7 +25,7 @@ import m from "mithril";
  * value. Remember, though, that this will only be called once and this should
  * not rely on any input values.
  */
-export default class Form
+class Form
 {
     /**
      * Create a new form.
@@ -193,7 +193,7 @@ export default class Form
      * 'group' and 'options' will create an option group with the display name
      * of the 'group' value and the 'options' containing the groups options.
      *
-     * Example options:
+     * # Example Options:
      * - Simple Array
      *   ```.js
      *   ["red", "green", "blue"]
@@ -376,3 +376,5 @@ export default class Form
         });
     }
 };
+
+export default Form;
