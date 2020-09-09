@@ -117,14 +117,17 @@ class OpenSsl
 
                 await Promise.all([
                     File.writeFile(csr_conf_path,
-                                   Config.getCreateCaConfig(digest_algorithm,
-                                                            common_name,
-                                                            country,
-                                                            state,
-                                                            locality,
-                                                            organization,
-                                                            organizational_unit,
-                                                            email_address)),
+                                   Config.getCertificateSigningRequest(
+                                       digest_algorithm,
+                                       common_name,
+                                       country,
+                                       state,
+                                       locality,
+                                       organization,
+                                       organizational_unit,
+                                       email_address,
+                                       true,
+                                       [])),
 
                     // Create key pair
                     genrsa("-out", key_path, key_length)
@@ -135,7 +138,6 @@ class OpenSsl
                     req("-x509",
                         "-new",
                         "-config", csr_conf_path,
-                        "-extensions", "v3_ca",
                         "-days", lifetime,
                         "-key", key_path,
                         "-out", certificate_path),
@@ -200,19 +202,21 @@ class OpenSsl
                 const serial_path      = path.join(scratch_dir, "serial");
 
                 await File.writeFile(csr_conf_path,
-                                     Config.getCreateCaConfig(digest_algorithm,
-                                                              common_name,
-                                                              country,
-                                                              state,
-                                                              locality,
-                                                              organization,
-                                                              organizational_unit,
-                                                              email_address));
+                                     Config.getCertificateSigningRequest(
+                                         digest_algorithm,
+                                         common_name,
+                                         country,
+                                         state,
+                                         locality,
+                                         organization,
+                                         organizational_unit,
+                                         email_address,
+                                         false,
+                                         []));
 
                 await Promise.all([
                     req("-new",
                         "-config", csr_conf_path,
-                        "-extensions", "v3_ca",
                         "-newkey", `rsa:${key_length}`,
                         "-keyout", key_path,
                         "-out", csr_path),
@@ -270,6 +274,103 @@ class OpenSsl
         }
     }
 
+    async makeServerCert(name,
+                         signer,
+                         key_length,
+                         digest_algorithm,
+                         lifetime,
+                         common_name,
+                         country,
+                         state,
+                         locality,
+                         organization,
+                         organizational_unit,
+                         email_address,
+                         alternate_domain_names,
+                         storage)
+    {
+        const signer_valid = (!signer.intermediate_only &&
+                              signer.hasFiles("certificate",
+                                              "key",
+                                              "index",
+                                              "serial"));
+        if (!signer_valid)
+        {
+            return false;
+        }
+
+        try
+        {
+            return await this.withScratchDir(true, async (scratch_dir) => {
+                const csr_conf_path    = path.join(scratch_dir, "csr.conf");
+                const csr_path         = path.join(scratch_dir, "csr");
+                const key_path         = path.join(scratch_dir, "key");
+                const ca_config_path   = path.join(scratch_dir, "ca.conf");
+                const certificate_path = path.join(scratch_dir, "certificate");
+                const chain_path       = path.join(scratch_dir, "chain");
+
+                await File.writeFile(csr_conf_path,
+                                     Config.getCertificateSigningRequest(
+                                         digest_algorithm,
+                                         common_name,
+                                         country,
+                                         state,
+                                         locality,
+                                         organization,
+                                         organizational_unit,
+                                         email_address,
+                                         false,
+                                         alternate_domain_names));
+
+                await Promise.all([
+                    req("-new",
+                        "-config", csr_conf_path,
+                        "-newkey", `rsa:${key_length}`,
+                        "-keyout", key_path,
+                        "-out", csr_path),
+
+                    File.writeFile(ca_config_path,
+                                   Config.getLooseCaConfig(
+                                       signer.getFilePath("index"),
+                                       signer.getFilePath("serial"),
+                                       signer.getFilePath("random"),
+                                       signer.getFilePath("key"),
+                                       signer.getFilePath("certificate"),
+                                       scratch_dir,
+                                       digest_algorithm,
+                                       lifetime,
+                                       Config.SignedType.SERVER))
+                ]);
+
+                await ca("-batch",
+                         "-config", ca_config_path,
+                         "-notext",
+                         "-in", csr_path,
+                         "-out", certificate_path);
+
+                await Promise.all([
+                    File.readFile(certificate_path,                  null),
+                    File.readFile(signer.getFilePath("certificate"), null)
+                ])
+                    .then(async (certs) => {
+                        const chain = Buffer.concat(certs);
+                        await File.writeFile(chain_path, chain);
+                    });
+
+                return await storage.storeCert(name,
+                                               {certificate: certificate_path,
+                                                key:         key_path,
+                                                chain:       chain_path});
+            });
+        }
+        catch (error)
+        {
+            console.error(error);
+            return false;
+        }
+    }
+
+    /** @todo Implement this one properly. */
     async makeClientCert(name,
                          signing_cert,
                          signing_key,

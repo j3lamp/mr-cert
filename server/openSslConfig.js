@@ -1,5 +1,7 @@
 "use strict"
 
+const Enum = require("es6-enum");
+
 /**
  * @module OpenSslConfig
  *
@@ -12,97 +14,12 @@
  * @see <https://jamielinux.com/docs/openssl-certificate-authority/appendix/intermediate-configuration-file.html>
  */
 
-const COMMON_CONFIG = `[ policy_strict ]
-# The root CA should only sign intermediate certificates that match.
-# See the POLICY FORMAT section of man ca.
-countryName             = match
-stateOrProvinceName     = match
-organizationName        = match
-organizationalUnitName  = optional
-commonName              = supplied
-emailAddress            = optional
 
-[ policy_loose ]
-# Allow the intermediate CA to sign a more diverse range of certificates.
-# See the POLICY FORMAT section of the ca man page.
-countryName             = optional
-stateOrProvinceName     = optional
-localityName            = optional
-organizationName        = optional
-organizationalUnitName  = optional
-commonName              = supplied
-emailAddress            = optional
+const SignedType = Enum("SERVER");
 
-[ req ]
-# Options for the req tool (man req).
-default_bits        = 2048
-distinguished_name  = req_distinguished_name
-string_mask         = utf8only
-
-# SHA-1 is deprecated, so use SHA-2 instead.
-default_md          = sha256
-
-# Extension to add when the -x509 option is used.
-x509_extensions     = v3_ca
-
-[ req_distinguished_name ]
-# See <https://en.wikipedia.org/wiki/Certificate_signing_request>.
-countryName                     = Country Name (2 letter code)
-stateOrProvinceName             = State or Province Name
-localityName                    = Locality Name
-0.organizationName              = Organization Name
-organizationalUnitName          = Organizational Unit Name
-commonName                      = Common Name
-emailAddress                    = Email Address
-
-[ v3_ca ]
-# Extensions for a typical CA (man x509v3_config).
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always,issuer
-basicConstraints = critical, CA:true
-keyUsage = critical, digitalSignature, cRLSign, keyCertSign
-
-[ v3_intermediate_ca ]
-# Extensions for a typical intermediate CA (man x509v3_config).
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always,issuer
-basicConstraints = critical, CA:true, pathlen:0
-keyUsage = critical, digitalSignature, cRLSign, keyCertSign
-
-[ usr_cert ]
-# Extensions for client certificates (man x509v3_config).
-basicConstraints = CA:FALSE
-nsCertType = client, email
-nsComment = "OpenSSL Generated Client Certificate"
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid,issuer
-keyUsage = critical, nonRepudiation, digitalSignature, keyEncipherment
-extendedKeyUsage = clientAuth, emailProtection
-
-[ server_cert ]
-# Extensions for server certificates (man x509v3_config).
-basicConstraints = CA:FALSE
-nsCertType = server
-nsComment = "OpenSSL Generated Server Certificate"
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid,issuer:always
-keyUsage = critical, digitalSignature, keyEncipherment
-extendedKeyUsage = serverAuth
-
-[ crl_ext ]
-# Extension for CRLs (man x509v3_config).
-authorityKeyIdentifier=keyid:always
-
-[ ocsp ]
-# Extension for OCSP signing certificates (man ocsp).
-basicConstraints = CA:FALSE
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid,issuer
-keyUsage = critical, digitalSignature
-extendedKeyUsage = critical, OCSPSigning`
 
 module.exports = {
-    getCreateCaConfig: function getCreateCaConfig(
+    getCertificateSigningRequest: function getCertificateSigningRequest(
         digest_algorithm,
         common_name,
         country,
@@ -110,35 +27,79 @@ module.exports = {
         locality,
         organization,
         organizational_unit,
-        email_address
+        email_address,
+        is_root_ca=false,
+        alternate_domain_names=[]
     )
     {
+        const have_alternate_domains = (alternate_domain_names &&
+                                        alternate_domain_names.length > 0)
+        const have_req_extensions    = have_alternate_domains;
+        const have_x509_extensions   = is_root_ca;
+
         let config = [
             "[req]",
-            "prompt = no",
-            "encrypt_key = no",
-            `default_md = ${digest_algorithm}`,
-            "distinguished_name = dn",
+            "prompt                 = no",
+            "encrypt_key            = no",
+            `default_md             = ${digest_algorithm}`,
+            "distinguished_name     = dn"];
+        if (have_req_extensions)
+        {
+            config.push("req_extensions         = req_ext");
+        }
+        if (have_x509_extensions)
+        {
+            config.push("x509_extensions        = x509_ext");
+        }
+
+        config.push(
             "",
             "[ dn ]",
-            `CN = ${common_name}`,
-            `O = ${organization}`];
+            `CN                     = ${common_name}`,
+            `O                      = ${organization}`);
         if (organizational_unit)
         {
-            config.push(`OU = ${organizational_unit}`);
+            config.push(`OU                     = ${organizational_unit}`);
         }
         config.push(
-            `C = ${country}`,
-            `ST = ${state}`,
-            `L = ${locality}`,
-            `emailAddress = ${email_address}`,
-            "",
-            "[ v3_ca ]",
-            "# Extensions for a typical CA (man x509v3_config).",
-            "subjectKeyIdentifier = hash",
-            "authorityKeyIdentifier = keyid:always,issuer",
-            "basicConstraints = critical, CA:true",
-            "keyUsage = critical, digitalSignature, cRLSign, keyCertSign");
+            `C                      = ${country}`,
+            `ST                     = ${state}`,
+            `L                      = ${locality}`);
+        if (email_address)
+        {
+            config.push(`emailAddress           = ${email_address}`);
+        }
+
+        if (have_req_extensions)
+        {
+            config.push(
+                "",
+                "[ req_ext ]");
+            if (have_alternate_domains)
+            {
+                const domain_entries = alternate_domain_names.map((name) => {
+                    return `DNS: ${name}`;
+                });
+                const domain_list = domain_entries.join(", ");
+
+                config.push(`subjectAltName         = ${domain_list}`);
+            }
+        }
+
+        if (have_x509_extensions)
+        {
+            config.push(
+                "",
+                "[ x509_ext ]");
+            if (is_root_ca)
+            {
+                config.push(
+                    "subjectKeyIdentifier   = hash",
+                    "authorityKeyIdentifier = keyid:always,issuer",
+                    "basicConstraints       = critical, CA:true",
+                    "keyUsage               = critical, digitalSignature, cRLSign, keyCertSign");
+            }
+        }
 
         return config.join("\n");
     },
@@ -182,6 +143,67 @@ module.exports = {
             "authorityKeyIdentifier = keyid:always,issuer",
             "basicConstraints       = critical, CA:true, pathlen:0",
             "keyUsage               = critical, digitalSignature, cRLSign, keyCertSign"];
+
+        return config.join("\n");
+    },
+
+    SignedType: SignedType,
+
+    getLooseCaConfig: function getLooseCaConfig(index_path,
+                                                serial_path,
+                                                rand_path,
+                                                key_path,
+                                                certificate_path,
+                                                new_certs_dir,
+                                                digest_algorithm,
+                                                lifetime,
+                                                signed_type)
+    {
+        let config = [
+            "[ca]",
+            "default_ca             = CA_default",
+            "",
+            "[ CA_default ]",
+            `new_certs_dir          = ${new_certs_dir}`,
+            `database               = ${index_path}`,
+            `serial                 = ${serial_path}`,
+            `RANDFILE               = ${rand_path}`,
+            "",
+            `private_key            = ${key_path}`,
+            `certificate            = ${certificate_path}`,
+            "",
+            "preserve               = no",
+            "policy                 = policy_loose",
+            "",
+            `default_md             = ${digest_algorithm}`,
+            `default_days           = ${lifetime}`,
+            "",
+            "x509_extensions        = x509_ext",
+            "copy_extensions        = copy",
+            "",
+            "[ policy_loose ]",
+            "# Allow the intermediate CA to sign a more diverse range of certificates.",
+            "# See the POLICY FORMAT section of the ca man page.",
+            "countryName            = optional",
+            "stateOrProvinceName    = optional",
+            "localityName           = optional",
+            "organizationName       = optional",
+            "organizationalUnitName = optional",
+            "commonName             = supplied",
+            "emailAddress           = optional",
+            "",
+            "[ x509_ext ]"];
+        if (SignedType.SERVER       == signed_type)
+        {
+            config.push(
+                "basicConstraints       = CA:FALSE",
+                "nsCertType             = server",
+                `nsComment              = "OpenSSL Generated Server Certificate"`,
+                "subjectKeyIdentifier   = hash",
+                "authorityKeyIdentifier = keyid,issuer:always",
+                "keyUsage               = critical, digitalSignature, keyEncipherment",
+                "extendedKeyUsage       = serverAuth");
+        }
 
         return config.join("\n");
     }
