@@ -54,6 +54,12 @@ class CertList extends LoadingPage
         return requests;
     }
 
+    subtitle(vnode)
+    {
+        const type_name = CertTypes.getCertTypeName(vnode.attrs.type);
+        return `${type_name}s`;
+    }
+
     loadedContent(vnode)
     {
         const cert_type = vnode.attrs.type;
@@ -118,6 +124,14 @@ class CertText extends LoadingPage
                 .then((data) => {
                     this.certificate_text = data;
                 }));
+    }
+
+    subtitle(vnode)
+    {
+        const {type, certificate} = vnode.attrs;
+        const type_name = CertTypes.getCertTypeName(type);
+
+        return `${certificate} (${type_name})`;
     }
 
     loadedContent(vnode)
@@ -298,6 +312,12 @@ class CreateCert extends LoadingPage
         {
             return false;
         }
+    }
+
+    subtitle(vnode)
+    {
+        const type_name = CertTypes.getCertTypeName(vnode.attrs.type);
+        return `Create a ${type_name}`;
     }
 
     loadedContent()

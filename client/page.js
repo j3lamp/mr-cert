@@ -42,13 +42,40 @@ export class Page
         let nav_content = [];
         for (const {type, name} of ALL_CERT_TYPES)
         {
-            nav_content.push(m("li", m(m.route.Link, {href: `/${type}`}, name)));
+            nav_content.push(m("li", m(m.route.Link, {href: `/${type}`}, `${name}s`)));
         }
 
-        return [m("header", m("h1", "Mr. Cert")),
+        let subtitle_node = this.subtitle(vnode);
+        if (subtitle_node)
+        {
+            subtitle_node = m("h2", subtitle_node);
+        }
+
+        return [m("header", [m("h1", "Mr. Cert"), subtitle_node]),
                 m("nav", m("ul", nav_content)),
                 m("div", {class: "content"}, this.content(vnode)),
                 m("footer", "The preferred certificate authority of Dark Helmet.")];
+    }
+
+    /**
+     * This function provides the text for the page's subtitle.
+     *
+     * When subclassing Page the derived class should reimplement this function
+     * if the page needs a subtitle. It is provided the
+     * same Mithril VNode object as the view() function allowing use of the
+     * VNode's properties when rendering.
+     *
+     * @param {VNode} vnode  The Mithril VNode into which this page is being
+     *                       rendered.
+     *
+     * @returns {string}
+     *     The subtitle to be displayed on the page.
+     *
+     * @virtual
+     */
+    subtitle(vnode)
+    {
+        return null;
     }
 
     /**
