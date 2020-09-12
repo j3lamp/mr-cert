@@ -139,7 +139,7 @@ module.exports = class Server
 
             if (cert_name)
             {
-                context.body = {new_cert: cert_name};
+                context.body = {new_cert: `${cert_name}.crt`};
             }
             else
             {
@@ -240,30 +240,22 @@ module.exports = class Server
     async createClientCert(parameters)
     {
         const signer_storage = this.storage[parameters.signer.type];
-        let   cert           = await signer_storage.getCert(parameters.signer.name);
-        if (!cert)
-        {
-            return false;
-        }
-        cert.certificate = path.join(signer_storage.storage_dir, cert.certificate);
-        cert.key         = path.join(signer_storage.storage_dir, cert.key);
-
-        const name = await this.open_ssl.makeClientCert(parameters.name,
-                                                        cert.certificate,
-                                                        cert.key,
-                                                        parameters.key_length,
-                                                        parameters.digest,
-                                                        parameters.lifetime,
-                                                        parameters.country,
-                                                        parameters.state,
-                                                        parameters.locality,
-                                                        parameters.organization,
-                                                        parameters.organizational_unit,
-                                                        parameters.e_mail,
-                                                        parameters.common_name,
-                                                        parameters.domain_names,
-                                                        this.storage.client);
-
-        return name;
+        return await signer_storage.withCert(parameters.signer.name, async (cert) => {
+            return await this.open_ssl.makeClientCert(parameters.name,
+                                                      cert,
+                                                      parameters.signer.type,
+                                                      parameters.key_length,
+                                                      parameters.digest,
+                                                      parameters.lifetime,
+                                                      parameters.common_name,
+                                                      parameters.country,
+                                                      parameters.state,
+                                                      parameters.locality,
+                                                      parameters.organization,
+                                                      parameters.organizational_unit,
+                                                      parameters.email_address,
+                                                      parameters.domain_names,
+                                                      this.storage.client);
+        });
     }
 };

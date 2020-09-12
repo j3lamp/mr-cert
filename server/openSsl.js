@@ -376,97 +376,96 @@ class OpenSsl
         }
     }
 
-    /** @todo Implement this one properly. */
     async makeClientCert(name,
-                         signing_cert,
-                         signing_key,
-                         digest_length,
+                         signer,
+                         signer_type,
+                         key_length,
                          digest_algorithm,
                          lifetime,
+                         common_name,
                          country,
                          state,
                          locality,
                          organization,
                          organizational_unit,
                          email_address,
-                         common_name,
                          alternate_domain_names,
                          storage)
     {
-        if (organizational_unit)
+        const signer_valid = (!signer.intermediate_only &&
+                              signer.hasFiles("certificate",
+                                              "key",
+                                              "index",
+                                              "serial"));
+        if (!signer_valid)
         {
-            organizational_unit = "\nOU = " + organizational_unit;
-        }
-
-        let extensions = "";
-        let dns_list   = "";
-        for (const domain_name of alternate_domain_names)
-        {
-            if (domain_name)
-            {
-                if (dns_list)
-                {
-                    dns_list += ", ";
-                }
-                dns_list += `DNS: ${domain_name}`;
-            }
-        }
-        if (dns_list)
-        {
-            dns_list = `subjectAltName = ${dns_list}`;
-            extensions = `
-req_extensions = req_ext`;
+            return false;
         }
 
         try
         {
-            return await this.withScratchDir(async (scratch_dir) => {
-                let csr_conf = `[ req ]
-default_bits = ${digest_length}
-prompt = no
-encrypt_key = no
-default_md = ${digest_algorithm}
-distinguished_name = dn${extensions}
+            return await this.withScratchDir(true, async (scratch_dir) => {
+                const csr_conf_path    = path.join(scratch_dir, "csr.conf");
+                const csr_path         = path.join(scratch_dir, "csr");
+                const key_path         = path.join(scratch_dir, "key");
+                const ca_config_path   = path.join(scratch_dir, "ca.conf");
+                const certificate_path = path.join(scratch_dir, "certificate");
+                const chain_path       = path.join(scratch_dir, "chain");
 
-[ dn ]
-CN = ${common_name}
-emailAddress = ${email_address}
-O = ${organization}${organizational_unit}
-L = ${locality}
-ST = ${state}
-C = ${country}`;
-                if (dns_list)
-                {
-                    csr_conf += `
+                await File.writeFile(csr_conf_path,
+                                     Config.getCertificateSigningRequest(
+                                         digest_algorithm,
+                                         common_name,
+                                         country,
+                                         state,
+                                         locality,
+                                         organization,
+                                         organizational_unit,
+                                         email_address,
+                                         false,
+                                         alternate_domain_names));
 
-[ req_ext ]
-${dns_list}`;
-                }
+                await Promise.all([
+                    req("-new",
+                        "-config", csr_conf_path,
+                        "-newkey", `rsa:${key_length}`,
+                        "-keyout", key_path,
+                        "-out", csr_path),
 
-                const csr_conf_path = path.join(scratch_dir, "csr.conf");
-                await this.writeFile(csr_conf_path, csr_conf);
+                    File.writeFile(ca_config_path,
+                                   Config.getLooseCaConfig(
+                                       signer.getFilePath("index"),
+                                       signer.getFilePath("serial"),
+                                       signer.getFilePath("random"),
+                                       signer.getFilePath("key"),
+                                       signer.getFilePath("certificate"),
+                                       scratch_dir,
+                                       digest_algorithm,
+                                       lifetime,
+                                       Config.SignedType.CLIENT))
+                ]);
 
-                const key_path = path.join(scratch_dir, `${name}.key`);
-                const csr_path = path.join(scratch_dir, `${name}.csr`);
-                await req("-new",
-                          "-config", csr_conf_path,
-                          "-keyout", key_path,
-                          "-out", csr_path);
+                await ca("-batch",
+                         "-config", ca_config_path,
+                         "-notext",
+                         "-in", csr_path,
+                         "-out", certificate_path);
 
-                const ext_path = path.join(scratch_dir, "san.ext");
-                await this.writeFile(ext_path, dns_list);
+                await Promise.all([
+                    File.readFile(certificate_path,                  null),
+                    File.readFile(signer.getFilePath("certificate"), null)
+                ])
+                    .then(async (certs) => {
+                        const chain = Buffer.concat(certs);
+                        await File.writeFile(chain_path, chain);
+                    });
 
-                const cert_path = path.join(scratch_dir, `${name}.crt`);
-                await x509("-req",
-                           "-in", csr_path,
-                           "-extfile", ext_path,
-                           "-days", lifetime,
-                           "-CA", signing_cert,
-                           "-CAkey", signing_key,
-                           "-CAcreateserial",
-                           "-out", cert_path);
-
-                return await storage.storeCert(name, cert_path, key_path);
+                return await storage.storeCert(name,
+                                               {certificate: certificate_path,
+                                                key:         key_path,
+                                                chain:       chain_path},
+                                               {signer_type: signer_type,
+                                                signer_name: signer.name});
             });
         }
         catch (error)

@@ -15,7 +15,7 @@ const Enum = require("es6-enum");
  */
 
 
-const SignedType = Enum("SERVER");
+const SignedType = Enum("SERVER", "CLIENT");
 
 
 module.exports = {
@@ -182,8 +182,6 @@ module.exports = {
             "copy_extensions        = copy",
             "",
             "[ policy_loose ]",
-            "# Allow the intermediate CA to sign a more diverse range of certificates.",
-            "# See the POLICY FORMAT section of the ca man page.",
             "countryName            = optional",
             "stateOrProvinceName    = optional",
             "localityName           = optional",
@@ -193,7 +191,7 @@ module.exports = {
             "emailAddress           = optional",
             "",
             "[ x509_ext ]"];
-        if (SignedType.SERVER       == signed_type)
+        if (SignedType.SERVER == signed_type)
         {
             config.push(
                 "basicConstraints       = CA:FALSE",
@@ -203,6 +201,17 @@ module.exports = {
                 "authorityKeyIdentifier = keyid,issuer:always",
                 "keyUsage               = critical, digitalSignature, keyEncipherment",
                 "extendedKeyUsage       = serverAuth");
+        }
+        else if (SignedType.CLIENT == signed_type)
+        {
+            config.push(
+                "basicConstraints       = CA:FALSE",
+                "nsCertType             = client, email",
+                `nsComment              = "OpenSSL Generated Client Certificate"`,
+                "subjectKeyIdentifier   = hash",
+                "authorityKeyIdentifier = keyid,issuer",
+                "keyUsage               = critical, nonRepudiation, digitalSignature, keyEncipherment",
+                "extendedKeyUsage       = clientAuth, emailProtection");
         }
 
         return config.join("\n");
