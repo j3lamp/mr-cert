@@ -32,9 +32,9 @@ class Certificate
                 this[key] = certificate_entry[key];
             }
         }
+        this.name = name;
 
         this._storage = storage;
-        this._name    = name;
     }
 
     /**
@@ -78,7 +78,7 @@ class Certificate
      */
     getFilePath(file)
     {
-        return this._storage.getFilePath(this._name, file);
+        return this._storage.getFilePath(this.name, file);
     }
 };
 
@@ -98,7 +98,7 @@ class CertStorage
     constructor(storage_dir, required_files=["certificate"])
     {
         this.storage_dir    = storage_dir;
-        this.required_files = required_files;
+        this._required_files = required_files;
 
         this._mutex = {};
     }
@@ -232,7 +232,7 @@ class CertStorage
      */
     async storeCert(name, paths, attributes=null)
     {
-        for (const file of this.required_files)
+        for (const file of this._required_files)
         {
             if (!paths[file])
             {
@@ -309,7 +309,7 @@ class CertStorage
                 }
             }
 
-            const valid = this.required_files.reduce(
+            const valid = this._required_files.reduce(
                 (valid, required_file) => {
                     if (valid)
                     {

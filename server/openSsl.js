@@ -168,6 +168,7 @@ class OpenSsl
 
     async makeIntermediateCert(name,
                                signer,
+                               signer_type,
                                key_length,
                                digest_algorithm,
                                lifetime,
@@ -247,7 +248,7 @@ class OpenSsl
                     // Randomly initialize the serial number
                     (crypto.randomBytes(2).then((serial) => {
                         File.writeFile(serial_path, serial.toString('hex'));
-                    })),
+                    }))
                 ]);
 
                 await Promise.all([
@@ -264,7 +265,9 @@ class OpenSsl
                                                 key:         key_path,
                                                 index:       index_path,
                                                 serial:      serial_path,
-                                                chain:       chain_path});
+                                                chain:       chain_path},
+                                               {signer_type: signer_type,
+                                                signer_name: signer.name});
             });
         }
         catch (error)
@@ -276,6 +279,7 @@ class OpenSsl
 
     async makeServerCert(name,
                          signer,
+                         signer_type,
                          key_length,
                          digest_algorithm,
                          lifetime,
@@ -360,7 +364,9 @@ class OpenSsl
                 return await storage.storeCert(name,
                                                {certificate: certificate_path,
                                                 key:         key_path,
-                                                chain:       chain_path});
+                                                chain:       chain_path},
+                                               {signer_type: signer_type,
+                                                signer_name: signer.name});
             });
         }
         catch (error)

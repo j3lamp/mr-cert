@@ -200,6 +200,7 @@ module.exports = class Server
         return await signer_storage.withCert(parameters.signer.name, async (cert) => {
             return await this.open_ssl.makeIntermediateCert(parameters.name,
                                                             cert,
+                                                            parameters.signer.type,
                                                             parameters.key_length,
                                                             parameters.digest,
                                                             parameters.lifetime,
@@ -220,6 +221,7 @@ module.exports = class Server
         return await signer_storage.withCert(parameters.signer.name, async (cert) => {
             return await this.open_ssl.makeServerCert(parameters.name,
                                                       cert,
+                                                      parameters.signer.type,
                                                       parameters.key_length,
                                                       parameters.digest,
                                                       parameters.lifetime,
