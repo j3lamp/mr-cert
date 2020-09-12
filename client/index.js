@@ -183,8 +183,14 @@ class CreateCert extends LoadingPage
         if (null !== this.signing_certs)
         {
             signing_options = [];
-            for (const type in this.signing_certs)
+            // for (const type in this.signing_certs)
+            for (const {type} of CertTypes.SIGNING_CERT_TYPES)
             {
+                if (!this.signing_certs[type])
+                {
+                    continue;
+                }
+
                 let ca_options = [];
                 for (const cert_name in this.signing_certs[type])
                 {
@@ -233,13 +239,13 @@ class CreateCert extends LoadingPage
                            DEFAULT_LIFESPAN[cert_type],
                            "number",
                            lifetime_note);
+        this.form.addInput("common_name",         "Common Name");
         this.form.addSelect("country", "Country", "US", COUNTRY_OPTIONS);
         this.form.addInput("state",               "State");
         this.form.addInput("locality",            "Locality");
         this.form.addInput("organization",        "Organization");
         this.form.addInput("organizational_unit", "Organizational Unit");
         this.form.addInput("email_address",       "E-Mail Address");
-        this.form.addInput("common_name",         "Common Name");
         if ("root" == cert_type)
         {
             this.form.addCheckbox("intermediate_only",

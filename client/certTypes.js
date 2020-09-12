@@ -2,10 +2,10 @@
 /** @module certTypes */
 
 
-const SIGNING_CERT_TYPES = [{type: "root",         name: "CA Roots"},
-                            {type: "intermediate", name: "CA Intermediates"}];
-const LEAF_CERT_TYPES    = [{type: "server",       name: "Server Certificates"},
-                            {type: "client",       name: "Client Certificates"}];
+export const SIGNING_CERT_TYPES = [{type: "root",         name: "CA Roots"},
+                                   {type: "intermediate", name: "CA Intermediates"}];
+       const LEAF_CERT_TYPES    = [{type: "server",       name: "Server Certificates"},
+                                   {type: "client",       name: "Client Certificates"}];
 
 /**
  * An object that maps certificate types to their user friendly names.
