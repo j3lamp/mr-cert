@@ -1,3 +1,5 @@
+"use strict"
+
 const path = require("path");
 const fs   = require("fs").promises;
 
@@ -44,41 +46,52 @@ async function ensureDir(path)
 
 const ROOT_DIR         = "root_certs";
 const INTERMEDIATE_DIR = "intermediate_certs";
+const SERVER_DIR       = "server_certs";
 const CLIENT_DIR       = "client_certs";
-const SCRATCH_DIR      = "_scratch_";
 const ALL_DIRS         = [ROOT_DIR,
                           INTERMEDIATE_DIR,
-                          CLIENT_DIR,
-                          SCRATCH_DIR];
+                          SERVER_DIR,
+                          CLIENT_DIR];
+
+const REQUIRED_SIGNING_FILES = ["certificate",
+                                "key",
+                                "index",
+                                "serial"];
 
 async function start()
 {
     const parser = yargs
           .demandOption("storage-dir")
           .describe("storage-dir", "The directory in which CA files will be stored.")
+          .demandOption("scratch-dir")
+          .describe("scratch-dir", "Directory used for temporary files.")
           .demandOption("port")
           .number("port")
           .describe("port", "The port the server will use.");
 
-    const arguments = parser.argv
+    const command_arguments = parser.argv
 
-    const storage_dir = path.resolve(arguments.storageDir);
-    const port        = arguments.port;
+    const storage_dir = path.resolve(command_arguments.storageDir);
+    const scratch_dir = path.resolve(command_arguments.scratchDir);
+    const port        = command_arguments.port;
 
     await ensureDir(storage_dir);
-    for (const dir of ALL_DIRS)
-    {
-        await ensureDir(path.join(storage_dir, dir));
-    }
+    await Promise.all(ALL_DIRS.map((dir) => {
+        return ensureDir(path.join(storage_dir, dir));
+
+    }));
+    await ensureDir(scratch_dir);
 
     console.log(`Loading files from ${storage_dir}`);
-    const root_storage         = new CertStorage(path.join(storage_dir, ROOT_DIR));
+    const root_storage         = new CertStorage(path.join(storage_dir, ROOT_DIR), REQUIRED_SIGNING_FILES);
     const intermediate_storage = new CertStorage(path.join(storage_dir, INTERMEDIATE_DIR));
+    const server_storage       = new CertStorage(path.join(storage_dir, SERVER_DIR));
     const client_storage       = new CertStorage(path.join(storage_dir, CLIENT_DIR));
 
-    const open_ssl = new OpenSsl(path.join(storage_dir, SCRATCH_DIR));
+    const open_ssl = new OpenSsl(scratch_dir);
     const server   = new Server(root_storage,
                                 intermediate_storage,
+                                server_storage,
                                 client_storage,
                                 open_ssl);
 

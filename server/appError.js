@@ -1,3 +1,5 @@
+"use strict"
+
 class AppError
 {
     constructor(message, error_code, source_error="")

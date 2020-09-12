@@ -5,6 +5,8 @@
   "main": "index.js",
   "dependencies": {
     "argh": "1.0.0",
+    "async-mutex": "0.2.4",
+    "es6-enum": "1.1.0",
     "koa": "2.11.0",
     "koa-bodyparser": "4.3.0",
     "koa-router": "8.0.8",
@@ -14,13 +16,17 @@
   },
   "devDependencies": {
     "@mithril-icons/font-awesome": "1.2.0",
+    "docdash": "^1.2.0",
+    "jsdoc": "~3.6.5",
+    "jsdoc-export-default-interop": "^0.3.1",
     "mithril": "2.0.4",
     "parcel": "1.12.4"
   },
   "scripts": {
-    "build": "parcel build scripts/index.js",
-    "watch": "parcel watch scripts/index.js",
-    "start": "node index.js --storage-dir test_ca --port 3000",
+    "build": "parcel build client/index.js",
+    "watch": "parcel watch client/index.js",
+    "start": "node server/index.js --storage-dir test_ca --scratch-dir _scratch_ --port 3000",
+    "doc": "jsdoc --configure jsdoc_conf.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
