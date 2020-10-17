@@ -83,6 +83,15 @@ class CertList extends LoadingPage
                                                 "Certificate",
                                                 "certificate")];
 
+                let chain = null;
+                if (properties.has_chain)
+                {
+                    chain = [" ", downloadLink(file_url_base,
+                                               `${cert_name}.chain.crt`,
+                                               "Chain",
+                                               "link")]
+                }
+
                 let key  = null;
                 if (properties.has_key)
                 {
@@ -93,7 +102,7 @@ class CertList extends LoadingPage
                 }
 
                 certs.push(m("li", [cert_name,
-                                    m("span", {class: "files"}, [cert, key])]));
+                                    m("span", {class: "files"}, [cert, chain, key])]));
             }
         }
 

@@ -62,6 +62,8 @@ module.exports = class Server
                     let attributes = {...certs[name]};
                     delete attributes.files;
                     attributes.has_key = certs[name].files.includes("key");
+                    attributes.has_chain = ("intermediate" == attributes.signer_type &&
+                                            certs[name].files.includes("chain"));
 
                     certs[name] = attributes;
                 }
@@ -78,6 +80,13 @@ module.exports = class Server
                 {
                     context.body = cert_text;
                 }
+            });
+
+            router.get(`/files/${type}/:name.chain.crt`, async (context, next) => {
+                const name = context.params.name;
+                await send(context,
+                           this.storage[type].getFilePath(name, "chain"),
+                           {root: "/"});
             });
 
             router.get(`/files/${type}/:name.crt`, async (context, next) => {
