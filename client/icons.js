@@ -2,9 +2,11 @@
 
 import m from "mithril";
 
+
 import Certificate from "@mithril-icons/font-awesome/solid/icons/Certificate.js";
 import CompactDisc from "@mithril-icons/font-awesome/solid/icons/CompactDisc.js";
 import Eye         from "@mithril-icons/font-awesome/solid/icons/Eye.js";
+import FileUpload  from "@mithril-icons/font-awesome/solid/icons/FileUpload.js";
 import Key         from "@mithril-icons/font-awesome/solid/icons/Key.js";
 import Plus        from "@mithril-icons/font-awesome/solid/icons/Plus.js";
 
@@ -13,6 +15,7 @@ const icon_map = {
     certificate: Certificate,
     compactDisc: CompactDisc,
     eye:         Eye,
+    fileUpload:  FileUpload,
     key:         Key,
     plus:        Plus
 };

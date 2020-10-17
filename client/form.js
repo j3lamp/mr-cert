@@ -38,6 +38,7 @@ class Form
         this._base_id = base_id;
         this._fields  = [];
         this._values  = {};
+        this._readers = {};
         this._submit  = null;
     }
 
@@ -266,6 +267,52 @@ class Form
                       value:    value,
                       onchange: handler_function},
                      Form._makeOptions(options));
+        }
+
+        let field_spec = {display_name: display_name,
+                          name:         name,
+                          field:        field_function};
+        if (extra_function)
+        {
+            field_spec.extra = extra_function;
+        }
+
+        this._fields.push(field_spec);
+    }
+
+    addTextFile(name, display_name, extra_function=null)
+    {
+        this._values[name]  = null;
+        this._readers[name] = null;
+
+        const handler_function = (event) => {
+            const files = event.target.files;
+            if (1 == files.length)
+            {
+                if (this._readers[name])
+                {
+                    this._readers[name].abort();
+                }
+
+                let reader = new FileReader();
+                reader.readAsText(files[0]);
+                reader.onload = (event) => {
+                    this._values[name] = {name: files[0].name,
+                                          text: event.target.result};
+                };
+                this._readers[name] = reader;
+            }
+            else
+            {
+                this._values[name] = null;
+            }
+        };
+
+        const field_function = function makeFileField(value, id)
+        {
+            return m("input", {id: id,
+                               type: "file",
+                               onchange: handler_function});
         }
 
         let field_spec = {display_name: display_name,

@@ -92,6 +92,49 @@ class OpenSsl
         return result;
     }
 
+    /**
+     * Create ancilary files required for certificate authorities.
+     *
+     * The `openssl` command requires certificate authorities to have an index
+     * file, which is used to record what the CA has signed, revoked, etc. Also
+     * a serial file to keep track of the serial numbers used when signing
+     * certificates. The serial number will be initialized with a random 16-bit
+     * number.
+     *
+     * @param {string} index_path   The path at which the index file should be
+     *                              created.
+     * @param {string} serial_path  The path at which the serial file should be
+     *                              created.
+     */
+    async createCaFiles(index_path, serial_path)
+    {
+        const index  = File.writeFile(index_path, "");
+        const serial = (crypto.randomBytes(2).then((serial) => {
+            File.writeFile(serial_path, serial.toString('hex'));
+        }));
+
+        await Promise.all([index, serial]);
+    }
+
+    /**
+     * Create a certificate chain file.
+     *
+     * Be sure to order the sources from leaf towards root.
+     *
+     * @param {string} chain_path    The path at which to write the chain file.
+     * @param {string} source_paths  The paths to the certificates to combine
+     *                               into the chain file. Be sure to provide
+     *                               these in the correct order.
+     */
+    async createChainFile(chain_path, ...source_paths)
+    {
+        const certs = await Promise.all(source_paths.map(
+            (path) => {return File.readFile(path, null); }));
+        const chain = Buffer.concat(certs);
+        await File.writeFile(chain_path, chain);
+    }
+
+
     async makeRootCert(name,
                        key_length,
                        digest_algorithm,
@@ -192,7 +235,7 @@ class OpenSsl
 
         try
         {
-            return await this.withScratchDir(async (scratch_dir) => {
+            return await this.withScratchDir(false, async (scratch_dir) => {
                 const csr_conf_path    = path.join(scratch_dir, "csr.conf");
                 const csr_path         = path.join(scratch_dir, "csr");
                 const key_path         = path.join(scratch_dir, "key");
@@ -305,7 +348,7 @@ class OpenSsl
 
         try
         {
-            return await this.withScratchDir(true, async (scratch_dir) => {
+            return await this.withScratchDir(false, async (scratch_dir) => {
                 const csr_conf_path    = path.join(scratch_dir, "csr.conf");
                 const csr_path         = path.join(scratch_dir, "csr");
                 const key_path         = path.join(scratch_dir, "key");
@@ -404,7 +447,7 @@ class OpenSsl
 
         try
         {
-            return await this.withScratchDir(true, async (scratch_dir) => {
+            return await this.withScratchDir(false, async (scratch_dir) => {
                 const csr_conf_path    = path.join(scratch_dir, "csr.conf");
                 const csr_path         = path.join(scratch_dir, "csr");
                 const key_path         = path.join(scratch_dir, "key");
@@ -466,6 +509,92 @@ class OpenSsl
                                                 chain:       chain_path},
                                                {signer_type: signer_type,
                                                 signer_name: signer.name});
+            });
+        }
+        catch (error)
+        {
+            console.error(error);
+            return false;
+        }
+    }
+
+    /**
+     * Verify that the provided certificate valid and store it if valid.
+     *
+     * @param {string} name
+     *     The name under which to store the certificate.
+     * @param {Certificate|null} signer
+     *    The certificate that was used to sign the provideded certificate. This
+     *    will be used to verify the certificate.
+     * @param {string|null} signer_type
+     *    The type of the signing certificate.
+     * @param {string} certificate_text
+     *    The contents of the new certificate file.
+     * @param {string|null} private_key_text
+     *     The contents of the new certificates private key. This is only needed
+     *     if the certificate will be used to sign certificates.
+     * @param {bool} create_ca_files
+     *    Whether or not to create files necessary for the certificate to be
+     *    used for signing.
+     * @param {CertStorage} storage
+     *    The storage for the new certificate.
+     *
+     * @returns {string|false}  The name of the actually stored certificate or
+     *                          `false` if it was not valid or couldn't be
+     *                          stored.
+     */
+    async verifyAndStoreCert(name,
+                             signer,
+                             signer_type,
+                             certificate_text,
+                             private_key_text,
+                             create_ca_files,
+                             intermediate_only,
+                             storage)
+    {
+        try
+        {
+            return await this.withScratchDir(false, async (scratch_dir) => {
+                let files      = {certificate:       path.join(scratch_dir, "certificate")};
+                let attributes = {intermediate_only: intermediate_only};
+
+                let file_promises = [];
+                file_promises.push(File.writeFile(files.certificate, certificate_text));
+                if (private_key_text)
+                {
+                    files.key = path.join(scratch_dir, "key");
+                    file_promises.push(File.writeFile(files.key, private_key_text));
+                }
+                if (create_ca_files)
+                {
+                    files.index  = path.join(scratch_dir, "index");
+                    files.serial = path.join(scratch_dir, "serial");
+                    file_promises.push(this.createCaFiles(files.index, files.serial));
+                }
+
+                let signing_cert = null;
+                if (signer)
+                {
+                    files.chain  = path.join(scratch_dir, "chain");
+                    signing_cert = signer.getFilePath("certificate");
+                    attributes   = {signer_type: signer_type,
+                                    signer_name: signer.name};
+
+                    file_promises.push(this.createChainFile(files.chain,
+                                                            files.certificate,
+                                                            signing_cert));
+                }
+                else
+                {
+                    // The certificate is self-signed.
+                    signing_cert = files.certificate;
+                }
+                await Promise.all(file_promises);
+
+
+                await verify("-CAfile", signing_cert, files.certificate);
+
+                return await storage.storeCert(name, files, attributes);
             });
         }
         catch (error)

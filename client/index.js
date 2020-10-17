@@ -100,10 +100,10 @@ class CertList extends LoadingPage
         let controls = null;
         if (this.can_create)
         {
-            controls = m("nav", m("ul", m("li", link(`/${cert_type}`,
-                                                     "create-cert",
-                                                     "Create Cert",
-                                                     "plus"))));
+            controls = m("nav", m("ul", [
+                m("li", link(`/${cert_type}`, "create-cert", "Create Cert", "plus")),
+                m("li", link(`/${cert_type}`, "upload-cert", "Upload", "fileUpload"))
+            ]));
         }
 
         return m("ul", {class: "cert-list"}, [certs, controls]);
@@ -327,11 +327,142 @@ class CreateCert extends LoadingPage
 };
 
 
+class UploadCert extends LoadingPage
+{
+    request(vnode)
+    {
+        const cert_type = vnode.attrs.type;
+
+        this.signing_certs = null;
+
+        const signing_types = CertTypes.getSigningTypes(cert_type);
+        let requests = [];
+        if (signing_types.length > 0)
+        {
+            this.signing_certs = {};
+            requests = signing_types.map((type) => {
+                return (m.request({method: "GET",
+                                   url:    `/api/${type}`})
+                        .then((data) => {
+                            this.signing_certs[type] = data;
+                        }));
+            });
+        }
+
+        return (Promise.all(requests)
+                .then(() => {
+                    this.createForm(cert_type);
+                }));
+    }
+
+    createForm(cert_type)
+    {
+        let signing_options = null;
+        if (null !== this.signing_certs)
+        {
+            signing_options = [];
+            // for (const type in this.signing_certs)
+            for (const {type} of CertTypes.SIGNING_CERT_TYPES)
+            {
+                if (!this.signing_certs[type])
+                {
+                    continue;
+                }
+
+                let ca_options = [];
+                for (const cert_name in this.signing_certs[type])
+                {
+                    const value = JSON.stringify({type: type,
+                                                  name: cert_name});
+                    ca_options.push({value: value,
+                                     name:  cert_name});
+                }
+
+                signing_options.push({group:   CertTypes.getCertTypeName(type),
+                                      options: ca_options});
+            }
+        }
+
+
+        this.form = new Form("upload_form");
+
+        this.form.addInput("name", "Name");
+        if (null !== signing_options)
+        {
+            this.form.addSelect("signer", "Signing Certificate", "", signing_options);
+        }
+        this.form.addTextFile("cert_file", "Certificate File");
+        this.form.addTextFile("key_file",  "Private Key");
+        if ("root" == cert_type)
+        {
+            this.form.addCheckbox("intermediate_only",
+                                  "Only use to sign intermediate certificates",
+                                  false);
+        }
+
+        this.form.setSubmit("Upload Certificate",
+                            () => { return this.submit(cert_type) })
+    }
+
+    submit(cert_type)
+    {
+        try
+        {
+            let body = this.form.getValues();
+            if (undefined !== body.signer)
+            {
+                body.signer = JSON.parse(body.signer);
+            }
+            if (body.cert_file)
+            {
+                body.cert_file = body.cert_file.text;
+            }
+            if (body.key_file)
+            {
+                body.key_file  = body.key_file.text;
+            }
+
+            this.whileLoading(
+                m.request({method: "POST",
+                           url:    `/${cert_type}/upload-cert-file`,
+                           body:   body})
+                    .then((data) => {
+                        m.route.set(`/${cert_type}/text/${data.new_cert}`);
+                    })
+                    .catch(() => {
+                        /// @todo display an error, ideally something useful...
+
+                        // However, we don't want the standard error page
+                        // since in most cases the user will be able to fix
+                        // the error.
+                    })
+            );
+        }
+        finally
+        {
+            return false;
+        }
+    }
+
+    subtitle(vnode)
+    {
+        const type_name = CertTypes.getCertTypeName(vnode.attrs.type);
+        return `Upload a ${type_name}`;
+    }
+
+    loadedContent()
+    {
+        return this.form.m();
+    }
+};
+
+
 m.route(dom_root,
         "/",
         {
             "/":                         Blank,
             "/:type":                    CertList,
             "/:type/text/:certificate":  CertText,
-            "/:type/create-cert":        CreateCert
+            "/:type/create-cert":        CreateCert,
+            "/:type/upload-cert":        UploadCert
         });

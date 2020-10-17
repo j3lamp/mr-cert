@@ -108,8 +108,37 @@ module.exports = class Server
             }
         });
 
+        router.post("/root/upload-cert-file", async (context, next) => {
+            const cert_name = await this.uploadRootCert(this.storage.root,
+                                                        context.request.body);
+
+            if (cert_name)
+            {
+                context.body = {new_cert: `${cert_name}.crt`};
+            }
+            else
+            {
+                context.status = 500;
+            }
+        });
+
         router.post("/intermediate/create-cert-file", async (context, next) => {
             const cert_name = await this.createIntermediateCert(context.request.body);
+
+            if (cert_name)
+            {
+                context.body = {new_cert: `${cert_name}.crt`};
+            }
+            else
+            {
+                context.status = 500;
+            }
+        });
+
+        router.post("/intermediate/upload-cert-file", async (context, next) => {
+            const cert_name = await this.uploadSignedCert(this.storage.intermediate,
+                                                          true,
+                                                          context.request.body);
 
             if (cert_name)
             {
@@ -134,6 +163,21 @@ module.exports = class Server
             }
         });
 
+        router.post("/server/upload-cert-file", async (context, next) => {
+            const cert_name = await this.uploadSignedCert(this.storage.server,
+                                                          false,
+                                                          context.request.body);
+
+            if (cert_name)
+            {
+                context.body = {new_cert: `${cert_name}.crt`};
+            }
+            else
+            {
+                context.status = 500;
+            }
+        });
+
         router.post("/client/create-cert-file", async (context, next) => {
             const cert_name = await this.createClientCert(context.request.body);
 
@@ -146,6 +190,22 @@ module.exports = class Server
                 context.status = 500;
             }
         });
+
+        router.post("/client/upload-cert-file", async (context, next) => {
+            const cert_name = await this.uploadSignedCert(this.storage.client,
+                                                          false,
+                                                          context.request.body);
+
+            if (cert_name)
+            {
+                context.body = {new_cert: `${cert_name}.crt`};
+            }
+            else
+            {
+                context.status = 500;
+            }
+        });
+
 
         router.get('/api/have_certs', async (context, next) => {
             const types = JSON.parse(context.request.query.types);
@@ -256,6 +316,33 @@ module.exports = class Server
                                                       parameters.email_address,
                                                       parameters.domain_names,
                                                       this.storage.client);
+        });
+    }
+
+    async uploadRootCert(storage, parameters)
+    {
+        return await this.open_ssl.verifyAndStoreCert(parameters.name,
+                                                      null,
+                                                      null,
+                                                      parameters.cert_file,
+                                                      parameters.key_file,
+                                                      true,
+                                                      parameters.intermediate_only,
+                                                      storage);
+    }
+
+    async uploadSignedCert(storage, create_ca_files, parameters)
+    {
+        const signer_storage = this.storage[parameters.signer.type];
+        return await signer_storage.withCert(parameters.signer.name, async (cert) => {
+            return await this.open_ssl.verifyAndStoreCert(parameters.name,
+                                                          cert,
+                                                          parameters.signer.type,
+                                                          parameters.cert_file,
+                                                          parameters.key_file,
+                                                          create_ca_files,
+                                                          parameters.intermediate_only,
+                                                          storage);
         });
     }
 };
