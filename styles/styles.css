@@ -82,6 +82,11 @@ h1
     font-size: 300%;
 }
 
+p
+{
+    margin-bottom: 2ex;
+}
+
 nav
 {
     float: right;
@@ -230,12 +235,18 @@ nav a:hover,
     margin-left: 2em;
 }
 
+.content h1
+{
+    font-size: 150%;
+}
+
 .content nav
 {
-    float: none;
-    clear: both;
+    float:    none;
+    clear:    both;
     position: absolute;
-    bottom: 0;
+    bottom:   0;
+    width:    auto;
 }
 
 .content nav li

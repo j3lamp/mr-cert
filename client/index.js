@@ -2,12 +2,14 @@
 
 import m from "mithril";
 
+const Config       = require("../common/openSslConfig");
 const CountryCodes = require("../common/countryCodes");
 
 import * as CertTypes       from "./certTypes"
 import Form                 from "./form"
 import Icons                from "./icons"
 import {link, downloadLink} from "./link"
+import OpenSsl              from "./openSsl"
 import {Page, LoadingPage}  from "./page"
 
 
@@ -109,9 +111,19 @@ class CertList extends LoadingPage
         let controls = null;
         if (this.can_create)
         {
+            let csr_controls = [];
+            if (!CertTypes.isSigningType(cert_type))
+            {
+                csr_controls = [
+                    m("li", link(`/${cert_type}`, "create-csr", "Create CSR", "plusSquare")),
+                    m("li", link(`/${cert_type}`, "sign-csr",   "Sign CSR",   "fileSignature"))
+                ];
+            }
+
             controls = m("nav", m("ul", [
+                ...csr_controls,
                 m("li", link(`/${cert_type}`, "create-cert", "Create Cert", "plus")),
-                m("li", link(`/${cert_type}`, "upload-cert", "Upload", "fileUpload"))
+                m("li", link(`/${cert_type}`, "upload-cert", "Upload",      "fileUpload"))
             ]));
         }
 
@@ -172,7 +184,7 @@ const DEFAULT_LIFESPAN = {root:         (365 * 20 + 20 / 4),
                           client:       375}
 
 
-class CreateCert extends LoadingPage
+class CreateCertForm extends LoadingPage
 {
     request(vnode)
     {
@@ -283,8 +295,55 @@ class CreateCert extends LoadingPage
                                "list");
         }
 
-        this.form.setSubmit("Create Certificate",
+        this.form.setSubmit(this.getSubmitText(),
                             () => { return this.submit(cert_type); });
+    }
+
+    /**
+     * Get the name to display on the submit button.
+     *
+     * @param {string} cert_type  The certificate type string, e.g. "root".
+     *
+     * @return {string}
+     *     The name to display on the submit button.
+     *
+     * @virtual
+     */
+    getSubmitText(cert_type)
+    {
+        return "";
+    }
+
+    /**
+     * Submit the form.
+     *
+     * @param {string} cert_type  The certificate type string, e.g. "root".
+     *
+     * @virtual
+     */
+    submit(cert_type)
+    {
+        console.error("submmit() needs to be overridden");
+    }
+
+    loadedContent()
+    {
+        return this.form.m();
+    }
+};
+
+
+class CreateCert extends CreateCertForm
+{
+    subtitle(vnode)
+    {
+        const type_name = CertTypes.getCertTypeName(vnode.attrs.type);
+        return `Create a ${type_name}`;
+    }
+
+    getSubmitText(cert_type)
+    {
+        return "Create Certificate";
     }
 
     submit(cert_type)
@@ -322,16 +381,75 @@ class CreateCert extends LoadingPage
             return false;
         }
     }
+};
 
+class CreateCsr extends CreateCertForm
+{
     subtitle(vnode)
     {
         const type_name = CertTypes.getCertTypeName(vnode.attrs.type);
-        return `Create a ${type_name}`;
+        return `Create a ${type_name} Signing Request`;
+    }
+
+    getSubmitText(cert_type)
+    {
+        return "Create CSR";
     }
 
     loadedContent()
     {
-        return this.form.m();
+        if (this.common_name &&
+            this.key_length  &&
+            this.csr_config)
+        {
+            const config_file_name = `${this.common_name}.conf`;
+            const key_file_name    = `${this.common_name}.key`;
+            const csr_file_name    = `${this.common_name}.csr`;
+
+            return [m("p", [
+                        "Create the certificate signing request with the following command:",
+                        m("pre", OpenSsl.createCsr(config_file_name,
+                                                   this.key_length,
+                                                   key_file_name,
+                                                   csr_file_name))
+                    ]),
+                    m("h1", "CSR Configuration File"),
+                    m("a",
+                      {href:     `data:text/plain,${encodeURIComponent(this.csr_config)}`,
+                       download: config_file_name},
+                      Icons.addTo("Download", "fileDownload")),
+                    m("pre", this.csr_config)];
+        }
+        else
+        {
+            return super.loadedContent();
+        }
+    }
+
+    submit(cert_type)
+    {
+        let values = this.form.getValues();
+        console.dir(values);
+
+        values.key_length = parseInt(values.key_length, 10);
+
+        if (!isNaN(values.key_length))
+        {
+            this.common_name = values.common_name;
+            this.key_length  = values.key_length;
+            this.csr_config  = Config.getCertificateSigningRequest(values.digest,
+                                                                   values.common_name,
+                                                                   values.country,
+                                                                   values.state,
+                                                                   values.locality,
+                                                                   values.organization,
+                                                                   values.organizational_unit,
+                                                                   values.email_address,
+                                                                   false,
+                                                                   values.domain_names);
+        }
+
+        return false;
     }
 };
 
@@ -472,6 +590,7 @@ m.route(dom_root,
             "/":                         Blank,
             "/:type":                    CertList,
             "/:type/text/:certificate":  CertText,
+            "/:type/create-csr":         CreateCsr,
             "/:type/create-cert":        CreateCert,
             "/:type/upload-cert":        UploadCert
         });
