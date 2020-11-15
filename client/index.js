@@ -186,34 +186,103 @@ const DEFAULT_LIFESPAN = {root:         (365 * 20 + 20 / 4),
 
 class CreateCertForm extends LoadingPage
 {
+    /**
+     * Get whether or not this form is for signing a certificate.
+     *
+     * Specific information is needed to sign a certificate. This function
+     * should be overriden to specify whether or not the form fields necessary
+     * for signing be included.
+     *
+     * @return {bool}
+     *     `true` if this form is for signing a certificate, `false` if it is
+     *     not.
+     *
+     * @virtual
+     */
+    isSigningForm()
+    {
+        return true;
+    }
+
+    /**
+     * Get whether or not this form is for requesting a certificate.
+     *
+     * Specific information is needed to request a certificate be singed. This
+     * function should be overriden to specify whether or not the form fields
+     * necessary for requesting a certificate be included.
+     *
+     * @return {bool}
+     *     `true` if this form is for requesting a certificate, `false` if it is
+     *     not.
+     *
+     * @virtual
+     */
+    isRequestForm()
+    {
+        return true;
+    }
+
+    /**
+     * Get the name to display on the submit button.
+     *
+     * @param {string} cert_type  The certificate type string, e.g. "root".
+     *
+     * @return {string}
+     *     The name to display on the submit button.
+     *
+     * @virtual
+     */
+    getSubmitText(cert_type)
+    {
+        return "";
+    }
+
+    /**
+     * Submit the form.
+     *
+     * @param {string} cert_type  The certificate type string, e.g. "root".
+     *
+     * @virtual
+     */
+    submit(cert_type)
+    {
+        console.error("submmit() needs to be overridden");
+    }
+
     request(vnode)
     {
-        const cert_type = vnode.attrs.type;
+        const cert_type  = vnode.attrs.type;
+        const is_signing = this.isSigningForm();
 
         this.signing_certs = null;
 
-        const signing_types = CertTypes.getSigningTypes(cert_type);
         let requests = [];
-        if (signing_types.length > 0)
+        if (is_signing)
         {
-            this.signing_certs = {};
-            requests = signing_types.map((type) => {
-                return (m.request({method: "GET",
-                                   url:    `/api/${type}`})
-                        .then((data) => {
-                            this.signing_certs[type] = data;
-                        }));
-            });
+            const signing_types = CertTypes.getSigningTypes(cert_type);
+            if (signing_types.length > 0)
+            {
+                this.signing_certs = {};
+                requests = signing_types.map((type) => {
+                    return (m.request({method: "GET",
+                                       url:    `/api/${type}`})
+                            .then((data) => {
+                                this.signing_certs[type] = data;
+                            }));
+                });
+            }
         }
 
         return (Promise.all(requests)
                 .then(() => {
-                    this.createForm(cert_type);
+                    this.createForm(cert_type, is_signing);
                 }));
     }
 
-    createForm(cert_type)
+    createForm(cert_type, is_signing)
     {
+        const is_request = this.isRequestForm();
+
         let signing_options = null;
         if (null !== this.signing_certs)
         {
@@ -259,71 +328,59 @@ class CreateCertForm extends LoadingPage
 
         this.form = new Form(`${cert_type}_cert_form`);
 
-        this.form.addInput("name", "Name");
+        if (is_signing || is_request)
+        {
+            this.form.addInput("name", "Name");
+        }
         if (null !== signing_options)
         {
             this.form.addSelect("signer", "Signing Certificate", "", signing_options);
         }
-        this.form.addSelect("key_length",
-                            ["Key Length ", m("span", {class: "unit"}, "bits")],
-                            default_key_length,
-                            KEY_LENGTH_OPTIONS);
-        this.form.addSelect("digest", "Digest", "sha256", DIGEST_ALGORITHM_OPTIONS);
-        this.form.addInput("lifetime",
-                           ["Lifetime", m("span", {class: "unit"}, "days")],
-                           DEFAULT_LIFESPAN[cert_type],
-                           "number",
-                           lifetime_note);
-        this.form.addInput("common_name",         "Common Name");
-        this.form.addSelect("country", "Country", "US", COUNTRY_OPTIONS);
-        this.form.addInput("state",               "State");
-        this.form.addInput("locality",            "Locality");
-        this.form.addInput("organization",        "Organization");
-        this.form.addInput("organizational_unit", "Organizational Unit");
-        this.form.addInput("email_address",       "E-Mail Address");
-        if ("root" == cert_type)
+        if (is_request)
         {
-            this.form.addCheckbox("intermediate_only",
-                                  "Only use to sign intermediate certificates",
-                                  false);
+            this.form.addSelect("key_length",
+                                ["Key Length ", m("span", {class: "unit"}, "bits")],
+                                default_key_length,
+                                KEY_LENGTH_OPTIONS);
         }
-        else if ("server" == cert_type)
+        if (is_signing || is_request)
         {
-            this.form.addInput("domain_names",
-                               "Subject Alternate Domain Names",
-                               [],
-                               "list");
+            this.form.addSelect("digest", "Digest", "sha256", DIGEST_ALGORITHM_OPTIONS);
+        }
+        if (is_signing)
+        {
+            this.form.addInput("lifetime",
+                               ["Lifetime", m("span", {class: "unit"}, "days")],
+                               DEFAULT_LIFESPAN[cert_type],
+                               "number",
+                               lifetime_note);
+        }
+        if (is_request)
+        {
+            this.form.addInput("common_name",         "Common Name");
+            this.form.addSelect("country", "Country", "US", COUNTRY_OPTIONS);
+            this.form.addInput("state",               "State");
+            this.form.addInput("locality",            "Locality");
+            this.form.addInput("organization",        "Organization");
+            this.form.addInput("organizational_unit", "Organizational Unit");
+            this.form.addInput("email_address",       "E-Mail Address");
+            if ("root" == cert_type)
+            {
+                this.form.addCheckbox("intermediate_only",
+                                      "Only use to sign intermediate certificates",
+                                      false);
+            }
+            else if ("server" == cert_type)
+            {
+                this.form.addInput("domain_names",
+                                   "Subject Alternate Domain Names",
+                                   [],
+                                   "list");
+            }
         }
 
         this.form.setSubmit(this.getSubmitText(),
                             () => { return this.submit(cert_type); });
-    }
-
-    /**
-     * Get the name to display on the submit button.
-     *
-     * @param {string} cert_type  The certificate type string, e.g. "root".
-     *
-     * @return {string}
-     *     The name to display on the submit button.
-     *
-     * @virtual
-     */
-    getSubmitText(cert_type)
-    {
-        return "";
-    }
-
-    /**
-     * Submit the form.
-     *
-     * @param {string} cert_type  The certificate type string, e.g. "root".
-     *
-     * @virtual
-     */
-    submit(cert_type)
-    {
-        console.error("submmit() needs to be overridden");
     }
 
     loadedContent()
@@ -385,6 +442,11 @@ class CreateCert extends CreateCertForm
 
 class CreateCsr extends CreateCertForm
 {
+    isSigningForm()
+    {
+        return false;
+    }
+
     subtitle(vnode)
     {
         const type_name = CertTypes.getCertTypeName(vnode.attrs.type);
@@ -450,6 +512,69 @@ class CreateCsr extends CreateCertForm
         }
 
         return false;
+    }
+};
+
+class SignCsr extends CreateCertForm
+{
+    isSigningForm()
+    {
+        return true;
+    }
+
+    isRequestForm()
+    {
+        return false;
+    }
+
+    subtitle(vnode)
+    {
+        const type_name = CertTypes.getCertTypeName(vnode.attrs.type);
+        return `Sign a ${type_name} Request`;
+    }
+
+    getSubmitText(cert_type)
+    {
+        return "Sign CSR";
+    }
+
+    createForm(cert_type, is_signing)
+    {
+        super.createForm(cert_type, is_signing);
+
+        this.form.addTextArea("csr_contents", "Certificate Signing Request", 18, 70);
+    }
+
+    submit(cert_type)
+    {
+        try
+        {
+            let body = this.form.getValues();
+            if (undefined !== body.signer)
+            {
+                body.signer = JSON.parse(body.signer);
+            }
+
+            this.whileLoading(
+                m.request({method: "POST",
+                           url:    `/${cert_type}/sign-csr`,
+                           body:   body})
+                    .then((data) => {
+                        m.route.set(`/${cert_type}/text/${data.new_cert}`);
+                    })
+                    .catch(() => {
+                        /// @todo display an error, ideally something useful...
+
+                        // However, we don't want the standard error page
+                        // since in most cases the user will be able to fix
+                        // the error.
+                    })
+            );
+        }
+        finally
+        {
+            return false;
+        }
     }
 };
 
@@ -591,6 +716,7 @@ m.route(dom_root,
             "/:type":                    CertList,
             "/:type/text/:certificate":  CertText,
             "/:type/create-csr":         CreateCsr,
+            "/:type/sign-csr":           SignCsr,
             "/:type/create-cert":        CreateCert,
             "/:type/upload-cert":        UploadCert
         });

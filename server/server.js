@@ -169,6 +169,19 @@ module.exports = class Server
             }
         });
 
+        router.post("/server/sign-csr", async (context, next) => {
+            const cert_name = await this.signServerCsr(context.request.body);
+
+            if (cert_name)
+            {
+                context.body = {new_cert: `${cert_name}.crt`};
+            }
+            else
+            {
+                context.status = 500;
+            }
+        });
+
         router.post("/server/upload-cert-file", async (context, next) => {
             const cert_name = await this.uploadSignedCert(this.storage.server,
                                                           false,
@@ -186,6 +199,19 @@ module.exports = class Server
 
         router.post("/client/create-cert-file", async (context, next) => {
             const cert_name = await this.createClientCert(context.request.body);
+
+            if (cert_name)
+            {
+                context.body = {new_cert: `${cert_name}.crt`};
+            }
+            else
+            {
+                context.status = 500;
+            }
+        });
+
+        router.post("/client/sign-csr", async (context, next) => {
+            const cert_name = await this.signClientCsr(context.request.body);
 
             if (cert_name)
             {
@@ -303,6 +329,20 @@ module.exports = class Server
         });
     }
 
+    async signServerCsr(parameters)
+    {
+        const signer_storage = this.storage[parameters.signer.type];
+        return await signer_storage.withCert(parameters.signer.name, async (cert) => {
+            return await this.ca.signServerCsr(parameters.name,
+                                               cert,
+                                               parameters.signer.type,
+                                               parameters.digest,
+                                               parameters.lifetime,
+                                               parameters.csr_contents,
+                                               this.storage.server);
+        });
+    }
+
     async createClientCert(parameters)
     {
         const signer_storage = this.storage[parameters.signer.type];
@@ -322,6 +362,20 @@ module.exports = class Server
                                                 parameters.email_address,
                                                 parameters.domain_names,
                                                 this.storage.client);
+        });
+    }
+
+    async signClientCsr(parameters)
+    {
+        const signer_storage = this.storage[parameters.signer.type];
+        return await signer_storage.withCert(parameters.signer.name, async (cert) => {
+            return await this.ca.signClientCsr(parameters.name,
+                                               cert,
+                                               parameters.signer.type,
+                                               parameters.digest,
+                                               parameters.lifetime,
+                                               parameters.csr_contents,
+                                               this.storage.server);
         });
     }
 

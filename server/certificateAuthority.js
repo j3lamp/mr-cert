@@ -502,6 +502,92 @@ class CertificateAuthority
         }
     }
 
+    async signServerCsr(name,
+                        signer,
+                        signer_type,
+                        digest_algorithm,
+                        lifetime,
+                        csr_contents,
+                        storage)
+    {
+        const signer_valid = (!signer.intermediate_only &&
+                              signer.hasFiles("certificate",
+                                              "key",
+                                              "index",
+                                              "serial"));
+        if (!signer_valid)
+        {
+            return false;
+        }
+
+        try
+        {
+            return await this.withScratchDir(false, async (scratch_dir) => {
+                const csr_path         = path.join(scratch_dir, "csr");
+
+                await File.writeFile(csr_path, csr_contents);
+
+                return await this._signCsr(scratch_dir,
+                                           csr_path,
+                                           Config.SignedType.SERVER,
+                                           name,
+                                           signer,
+                                           signer_type,
+                                           digest_algorithm,
+                                           lifetime,
+                                           storage);
+            });
+        }
+        catch (error)
+        {
+            console.error(error);
+            return false;
+        }
+    }
+
+    async signClientCsr(name,
+                        signer,
+                        signer_type,
+                        digest_algorithm,
+                        lifetime,
+                        csr_contents,
+                        storage)
+    {
+        const signer_valid = (!signer.intermediate_only &&
+                              signer.hasFiles("certificate",
+                                              "key",
+                                              "index",
+                                              "serial"));
+        if (!signer_valid)
+        {
+            return false;
+        }
+
+        try
+        {
+            return await this.withScratchDir(false, async (scratch_dir) => {
+                const csr_path         = path.join(scratch_dir, "csr");
+
+                await File.writeFile(csr_path, csr_contents);
+
+                return await this._signCsr(scratch_dir,
+                                           csr_path,
+                                           Config.SignedType.CLIENT,
+                                           name,
+                                           signer,
+                                           signer_type,
+                                           digest_algorithm,
+                                           lifetime,
+                                           storage);
+            });
+        }
+        catch (error)
+        {
+            console.error(error);
+            return false;
+        }
+    }
+
     /**
      * Verify that the provided certificate valid and store it if valid.
      *
@@ -586,6 +672,88 @@ class CertificateAuthority
             console.error(error);
             return false;
         }
+    }
+
+    /**
+     * Sign a CSR.
+     *
+     * The scratch directory must already exist as must the CSR file. It is
+     * assumed that the signing certificate is valid.
+     *
+     * @param {string} scratch_dir
+     *     The path to the scratch directory that should be used when creating
+     *     files. This directory must already exist. *Note:* this function will
+     *     not clean up the scratch directory.
+     * @param {string} csr_path
+     *     The path to the certificate signing request file.
+     * @param {SignedType} sigend_type
+     *     The type of certificate being requested.
+     * @param {string} name
+     *     The name under which to store the certificate once signed.
+     * @param {Certificate} signer
+     *    The certificate to use when signing the request. It is assumed that
+     *    this certificate is valid for signing the type of request being
+     *    signed.
+     * @param {string} signer_type
+     *    The type of the signing certificate.
+     * @param {string} digest_algorithm
+     *     The name of the digest algorithm to use when signing the certificate.
+     *     This must be a name that the `openssl` command will accept in a
+     *     configuration file for the `default_md` option.
+     * @param {number} lifetime
+     *     The period of time, in days, for which the signed certificate will be
+     *     valid. Must be positive and integral.
+     * @param {CertStorage} storage
+     *    The storage for the new certificate.
+     *
+     * @returns {string|false}  The name of the signed and stored certificate or
+     *                          `false` if unsuccessful.
+     *
+     * @throws  Will throw if an error occurs.
+     *
+     * @private
+     */
+    async _signCsr(scratch_dir,
+                   csr_path,
+                   signed_type,
+                   name,
+                   signer,
+                   signer_type,
+                   digest_algorithm,
+                   lifetime,
+                   storage)
+    {
+        const ca_config_path   = path.join(scratch_dir, "ca.conf");
+        const certificate_path = path.join(scratch_dir, "certificate");
+        const chain_path       = path.join(scratch_dir, "chain");
+
+        await File.writeFile(ca_config_path,
+                             Config.getLooseCaConfig(
+                                 signer.getFilePath("index"),
+                                 signer.getFilePath("serial"),
+                                 signer.getFilePath("random"),
+                                 signer.getFilePath("key"),
+                                 signer.getFilePath("certificate"),
+                                 scratch_dir,
+                                 digest_algorithm,
+                                 lifetime,
+                                 signed_type));
+
+        await OpenSsl.ca("-batch",
+                         "-config", ca_config_path,
+                         "-notext",
+                         "-in",     csr_path,
+                         "-out",    certificate_path);
+
+        await this.createChainFile(chain_path,
+                                   certificate_path,
+                                   signer.getFilePath("certificate"));
+
+        return await storage.storeCert(name,
+                                       {certificate: certificate_path,
+                                        chain:       chain_path},
+                                       {signer_type: signer_type,
+                                        signer_name: signer.name});
     }
 };
 
