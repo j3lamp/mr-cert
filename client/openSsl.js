@@ -14,7 +14,7 @@ const OpenSsl = {
                                            key_path,
                                            csr_path);
 
-        return ["openssl", ...args].join(" ");
+        return ["openssl", "req", ...args].join(" ");
     },
 };
 
