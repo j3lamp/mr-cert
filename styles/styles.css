@@ -256,6 +256,7 @@ nav a:hover,
 }
 
 .content input,
+.content textarea,
 .content select
 {
     background: black;
@@ -263,9 +264,16 @@ nav a:hover,
     border:     #2e3436 solid 1px;;
 }
 
-.content input:focus
+.content input:focus,
+.content textarea:focus
 {
     border-color: darkcyan;
+}
+
+.content textarea
+{
+    display:     block;
+    margin-left: 2em;
 }
 
 .content input[type=submit]

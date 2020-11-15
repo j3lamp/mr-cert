@@ -280,6 +280,37 @@ class Form
         this._fields.push(field_spec);
     }
 
+    addTextArea(name, display_name, rows, columns, extra_function=null)
+    {
+        this._values[name] = null;
+
+        const handler_function = (event) => {
+            this._values[name] = event.target.value;
+        };
+
+        const field_function = function makeTextArea(value, id)
+        {
+            return m("textarea",
+                     {
+                         id:       id,
+                         onchange: handler_function,
+                         rows:     rows,
+                         cols:     columns
+                     },
+                     value);
+        }
+
+        let field_spec = {display_name: display_name,
+                          name:         name,
+                          field:        field_function};
+        if (extra_function)
+        {
+            field_spec.extra = extra_function;
+        }
+
+        this._fields.push(field_spec);
+    }
+
     addTextFile(name, display_name, extra_function=null)
     {
         this._values[name]  = null;
