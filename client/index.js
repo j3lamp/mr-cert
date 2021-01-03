@@ -353,7 +353,7 @@ class CreateCertForm extends LoadingPage
                                ["Lifetime", m("span", {class: "unit"}, "days")],
                                DEFAULT_LIFESPAN[cert_type],
                                "number",
-                               lifetime_note);
+                               {render_suffix: lifetime_note});
         }
         if (is_request)
         {
@@ -542,7 +542,7 @@ class SignCsr extends CreateCertForm
     {
         super.createForm(cert_type, is_signing);
 
-        this.form.addTextArea("csr_contents", "Certificate Signing Request", 18, 70);
+        this.form.addTextArea("csr_contents", "Certificate Signing Request", "", 18, 70);
     }
 
     submit(cert_type)
