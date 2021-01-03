@@ -37,6 +37,9 @@ class Form
      * @property {Form~RenderSuffix} render_suffix
      *     A function that provides content to be rendered after the form field.
      *     It should have a signature like () -> {Vnode}.
+     * @property {Form~OnChange} on_change
+     *     A function that will be called when the value for the form field has
+     *     changed.
      */
 
     /**
@@ -45,6 +48,14 @@ class Form
      * @callback Form~RenderSuffix
      *
      * @returns {Vnode}  The Mithril Vnode to be displayed.
+     */
+
+    /**
+     * A function that will be called after a form field's value has changed.
+     * @callback Form~OnChange
+     *
+     * @param {*} value
+     *     The new value for the form field.
      */
 
     /**
@@ -107,12 +118,14 @@ class Form
      */
     constructor(base_id="m_form")
     {
-        this._base_id = base_id;
-        this._fields  = [];
-        this._values  = {};
-        this._readers = {};
-        this._submit  = null;
+        this._base_id     = base_id;
+        this._fields      = [];
+        this._field_specs = {};
+        this._values      = {};
+        this._readers     = {};
+        this._submit      = null;
     }
+
 
     /**
      * Get the values of all of the form's fields' values.
@@ -135,6 +148,77 @@ class Form
 
         return values;
     }
+
+
+    /**
+     * Get the value for a specific field.
+     *
+     * @param {string} name
+     *     The name of the field whose value is desired.
+     *
+     * @return {*} The field's value.
+     */
+    getValue(name)
+    {
+        let value = this._values[name];
+
+        if (Form._clear === value)
+        {
+            value = "";
+        }
+
+        return value;
+    }
+
+    /**
+     * Set the value for a specific field.
+     *
+     * *Note:* This will trigger a redraw if necessary.
+     *
+     * **Warning:** This will not cause the {@link Form~OnChange `on_change`}
+     *   callback to be called.
+     *
+     * @param {string} name
+     *     The name of the field whose value is to be change.
+     * @param {*} new_value
+     *     The new value to set for the field.
+     */
+    setValue(name, new_value)
+    {
+        if (this._values.hasOwnProperty(name))
+        {
+            if (new_value != this._values[name])
+            {
+                this._values[name] = new_value;
+                m.redraw();
+            }
+        }
+    }
+
+    /**
+     * Clear the value of a specific field.
+     *
+     * In many cases this is the same as calling
+     * {@link Form#setValue Form#setValue()} with `""` for the new value,
+     * however it handles the special cases of checkboxes and files.
+     *
+     * *Note:* This will trigger a redraw.
+     *
+     * **Warning:** This will not cause the {@link Form~OnChange `on_change`}
+     *   callback to be called.
+     *
+     * @param {string} name
+     *     The name of the field to clear.
+     */
+    clearField(name)
+    {
+        if (this._values.hasOwnProperty(name))
+        {
+            this._values[name] = this._field_specs[name].clear_value;
+            m.redraw();
+        }
+    }
+
 
     /**
      * Add a regular `<input>` field.
@@ -168,6 +252,7 @@ class Form
         let value_function   = null;
         let field_function   = null;
         let handler_function = null;
+        let clear_value      = "";
 
 
         if ("number" == type)
@@ -176,9 +261,11 @@ class Form
                 const new_value = parseInt(event.target.value, 10);
                 if (!isNaN(new_value))
                 {
-                    this._values[name] = new_value;
+                    this._setValue(name, new_value);
                 }
             };
+
+            clear_value = 0;
         }
         else if ("list" == type)
         {
@@ -190,13 +277,16 @@ class Form
             };
 
             handler_function = (event) => {
-                this._values[name] = event.target.value.split(/[^-.a-zA-Z0-9]+/);
+                this._setValue(name, event.target.value.split(/[^-.a-zA-Z0-9]+/));
+
             };
+
+            clear_value = [];
         }
         else
         {
             handler_function = (event) => {
-                this._values[name] = event.target.value;
+                this._setValue(name, event.target.value);
             };
         }
 
@@ -213,6 +303,7 @@ class Form
                         display_name,
                         field_function,
                         Form._FieldOrder.NORMAL,
+                        clear_value,
                         value_function,
                         extra_functions);
     }
@@ -236,7 +327,7 @@ class Form
         this._values[name] = initially_checked;
 
         const handler_function = (event) => {
-            this._values[name] = event.target.checked;
+            this._setValue(name, event.target.checked);
         }
 
         const  field_function = function makeCheckbox(value, id)
@@ -252,6 +343,7 @@ class Form
                         display_name,
                         field_function,
                         Form._FieldOrder.REVERSED,
+                        false,
                         null,
                         extra_functions);
     }
@@ -330,7 +422,7 @@ class Form
         this._values[name] = initial_value;
 
         const handler_function = (event) => {
-            this._values[name] = event.target.value;
+            this._setValue(name, event.target.value);
         };
 
         const field_function = function makeSelectField(value, id)
@@ -346,6 +438,7 @@ class Form
                         display_name,
                         field_function,
                         Form._FieldOrder.NORMAL,
+                        "",
                         null,
                         extra_functions);
     }
@@ -372,7 +465,7 @@ class Form
         this._values[name] = initial_value;
 
         const handler_function = (event) => {
-            this._values[name] = event.target.value;
+            this._setValue(name, event.target.value);
         };
 
         const field_function = function makeTextArea(value, id)
@@ -391,6 +484,7 @@ class Form
                         display_name,
                         field_function,
                         Form._FieldOrder.NORMAL,
+                        "",
                         null,
                         extra_functions);
     }
@@ -428,14 +522,14 @@ class Form
                 let reader = new FileReader();
                 reader.readAsText(files[0]);
                 reader.onload = (event) => {
-                    this._values[name] = {name: files[0].name,
-                                          text: event.target.result};
+                    this._setValue(name, {name: files[0].name,
+                                          text: event.target.result});
                 };
                 this._readers[name] = reader;
             }
             else
             {
-                this._values[name] = null;
+                this._setValue(name, null);
             }
         };
 
@@ -457,6 +551,7 @@ class Form
                         display_name,
                         field_function,
                         Form._FieldOrder.NORMAL,
+                        Form._clear,
                         null,
                         extra_functions);
     }
@@ -545,6 +640,8 @@ class Form
      *     The function used to render the field.
      * @param {Form~_FieldOrder} order
      *     The order in which the parts of the field should be drawn.
+     * @param {*} clear_value
+     *     The value to use when clearing the field.
      * @param {Form~_ValueFunction|null} value_function
      *     An optional function for transforming the stored value for use and
      *     display by the `field_function`.
@@ -558,6 +655,7 @@ class Form
                display_name,
                field_function,
                order,
+               clear_value,
                value_function,
                extra_functions)
     {
@@ -569,13 +667,43 @@ class Form
                           display_name: display_name,
                           field:        field_function,
                           order:        order,
+                          clear_value:  clear_value,
                           value:        value_function};
         if (extra_functions)
         {
             field_spec.render_suffix = extra_functions.render_suffix;
+            if (extra_functions.on_change)
+            {
+                field_spec.on_change = extra_functions.on_change;
+            }
+            else
+            {
+                field_spec.on_change = Form._nop;
+            }
         }
 
         this._fields.push(field_spec);
+        this._field_specs[name] = field_spec;
+    }
+
+    /**
+     * Set a new value for a field. This *should always* be used when the value
+     * of a form field changes.
+     *
+     * @param {string} name
+     *     The name of the field whose value change.
+     * @param {*} new_value
+     *     The new value of the field.
+     *
+     * @private
+     */
+    _setValue(name, new_value)
+    {
+        if (new_value != this._values[name])
+        {
+            this._values[name] = new_value;
+            this._field_specs[name].on_change(new_value);
+        }
     }
 
     /**
@@ -604,6 +732,13 @@ class Form
                 return m("option", {value: option}, option);
             }
         });
+    }
+
+    /**
+     * A function that does nothing.
+     */
+    static _nop()
+    {
     }
 
     /**
