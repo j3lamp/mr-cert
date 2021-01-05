@@ -1,14 +1,15 @@
 "use strict"
 
-const path = require("path");
-const fs   = require("fs").promises;
+const fs                   = require("fs").promises;
+const path                 = require("path");
 
-const yargs = require("yargs");
+const yargs                = require("yargs");
 
-const AppError    = require("./appError");
-const CertStorage = require("./certStorage");
-const OpenSsl     = require("./openSsl");
-const Server      = require("./server");
+const AppError             = require("./appError");
+const CertStorage          = require("./certStorage");
+const CertificateAuthority = require("./certificateAuthority");
+const Server               = require("./server");
+
 
 async function ensureDir(path)
 {
@@ -88,13 +89,13 @@ async function start()
     const server_storage       = new CertStorage(path.join(storage_dir, SERVER_DIR));
     const client_storage       = new CertStorage(path.join(storage_dir, CLIENT_DIR));
 
-    const open_ssl = new OpenSsl(scratch_dir);
+    const certificate_authority = new CertificateAuthority(scratch_dir);
+
     const server   = new Server(root_storage,
                                 intermediate_storage,
                                 server_storage,
                                 client_storage,
-                                open_ssl);
-
+                                certificate_authority);
     server.listen(port);
     console.log(`Listening on port ${port}`);
 }

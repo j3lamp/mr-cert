@@ -19,17 +19,14 @@ module.exports = class Server
         intermediate_storage,
         server_storage,
         client_storage,
-        open_ssl
+        certificate_authority
     )
     {
-        // this.root_storage         = root_storage;
-        // this.intermediate_storage = intermediate_storage;
-        // this.client_storage       = client_storage;
         this.storage = {root:         root_storage,
                         intermediate: intermediate_storage,
                         server:       server_storage,
                         client:       client_storage};
-        this.open_ssl             = open_ssl;
+        this.ca      = certificate_authority;
 
 
         this.http_server = new Koa();
@@ -75,7 +72,7 @@ module.exports = class Server
                 const cert_path = this.storage[type].getFilePath(cert_name,
                                                                  "certificate");
 
-                const cert_text = await this.open_ssl.getText(cert_path);
+                const cert_text = await this.ca.getText(cert_path);
                 if (cert_text)
                 {
                     context.body = cert_text;
@@ -172,6 +169,19 @@ module.exports = class Server
             }
         });
 
+        router.post("/server/sign-csr", async (context, next) => {
+            const cert_name = await this.signServerCsr(context.request.body);
+
+            if (cert_name)
+            {
+                context.body = {new_cert: `${cert_name}.crt`};
+            }
+            else
+            {
+                context.status = 500;
+            }
+        });
+
         router.post("/server/upload-cert-file", async (context, next) => {
             const cert_name = await this.uploadSignedCert(this.storage.server,
                                                           false,
@@ -189,6 +199,19 @@ module.exports = class Server
 
         router.post("/client/create-cert-file", async (context, next) => {
             const cert_name = await this.createClientCert(context.request.body);
+
+            if (cert_name)
+            {
+                context.body = {new_cert: `${cert_name}.crt`};
+            }
+            else
+            {
+                context.status = 500;
+            }
+        });
+
+        router.post("/client/sign-csr", async (context, next) => {
+            const cert_name = await this.signClientCsr(context.request.body);
 
             if (cert_name)
             {
@@ -248,7 +271,49 @@ module.exports = class Server
 
     async createRootCert(parameters)
     {
-        return await this.open_ssl.makeRootCert(parameters.name,
+        return await this.ca.makeRootCert(parameters.name,
+                                          parameters.key_length,
+                                          parameters.digest,
+                                          parameters.lifetime,
+                                          parameters.common_name,
+                                          parameters.country,
+                                          parameters.state,
+                                          parameters.locality,
+                                          parameters.organization,
+                                          parameters.organizational_unit,
+                                          parameters.email_address,
+                                          parameters.intermediate_only,
+                                          this.storage.root);
+    }
+
+    async createIntermediateCert(parameters)
+    {
+        const signer_storage = this.storage[parameters.signer.type];
+        return await signer_storage.withCert(parameters.signer.name, async (cert) => {
+            return await this.ca.makeIntermediateCert(parameters.name,
+                                                      cert,
+                                                      parameters.signer.type,
+                                                      parameters.key_length,
+                                                      parameters.digest,
+                                                      parameters.lifetime,
+                                                      parameters.common_name,
+                                                      parameters.country,
+                                                      parameters.state,
+                                                      parameters.locality,
+                                                      parameters.organization,
+                                                      parameters.organizational_unit,
+                                                      parameters.email_address,
+                                                      this.storage.intermediate);
+        });
+    }
+
+    async createServerCert(parameters)
+    {
+        const signer_storage = this.storage[parameters.signer.type];
+        return await signer_storage.withCert(parameters.signer.name, async (cert) => {
+            return await this.ca.makeServerCert(parameters.name,
+                                                cert,
+                                                parameters.signer.type,
                                                 parameters.key_length,
                                                 parameters.digest,
                                                 parameters.lifetime,
@@ -259,50 +324,22 @@ module.exports = class Server
                                                 parameters.organization,
                                                 parameters.organizational_unit,
                                                 parameters.email_address,
-                                                parameters.intermediate_only,
-                                                this.storage.root);
-    }
-
-    async createIntermediateCert(parameters)
-    {
-        const signer_storage = this.storage[parameters.signer.type];
-        return await signer_storage.withCert(parameters.signer.name, async (cert) => {
-            return await this.open_ssl.makeIntermediateCert(parameters.name,
-                                                            cert,
-                                                            parameters.signer.type,
-                                                            parameters.key_length,
-                                                            parameters.digest,
-                                                            parameters.lifetime,
-                                                            parameters.common_name,
-                                                            parameters.country,
-                                                            parameters.state,
-                                                            parameters.locality,
-                                                            parameters.organization,
-                                                            parameters.organizational_unit,
-                                                            parameters.email_address,
-                                                            this.storage.intermediate);
+                                                parameters.domain_names,
+                                                this.storage.server);
         });
     }
 
-    async createServerCert(parameters)
+    async signServerCsr(parameters)
     {
         const signer_storage = this.storage[parameters.signer.type];
         return await signer_storage.withCert(parameters.signer.name, async (cert) => {
-            return await this.open_ssl.makeServerCert(parameters.name,
-                                                      cert,
-                                                      parameters.signer.type,
-                                                      parameters.key_length,
-                                                      parameters.digest,
-                                                      parameters.lifetime,
-                                                      parameters.common_name,
-                                                      parameters.country,
-                                                      parameters.state,
-                                                      parameters.locality,
-                                                      parameters.organization,
-                                                      parameters.organizational_unit,
-                                                      parameters.email_address,
-                                                      parameters.domain_names,
-                                                      this.storage.server);
+            return await this.ca.signServerCsr(parameters.name,
+                                               cert,
+                                               parameters.signer.type,
+                                               parameters.digest,
+                                               parameters.lifetime,
+                                               parameters.csr_contents,
+                                               this.storage.server);
         });
     }
 
@@ -310,48 +347,62 @@ module.exports = class Server
     {
         const signer_storage = this.storage[parameters.signer.type];
         return await signer_storage.withCert(parameters.signer.name, async (cert) => {
-            return await this.open_ssl.makeClientCert(parameters.name,
-                                                      cert,
-                                                      parameters.signer.type,
-                                                      parameters.key_length,
-                                                      parameters.digest,
-                                                      parameters.lifetime,
-                                                      parameters.common_name,
-                                                      parameters.country,
-                                                      parameters.state,
-                                                      parameters.locality,
-                                                      parameters.organization,
-                                                      parameters.organizational_unit,
-                                                      parameters.email_address,
-                                                      parameters.domain_names,
-                                                      this.storage.client);
+            return await this.ca.makeClientCert(parameters.name,
+                                                cert,
+                                                parameters.signer.type,
+                                                parameters.key_length,
+                                                parameters.digest,
+                                                parameters.lifetime,
+                                                parameters.common_name,
+                                                parameters.country,
+                                                parameters.state,
+                                                parameters.locality,
+                                                parameters.organization,
+                                                parameters.organizational_unit,
+                                                parameters.email_address,
+                                                parameters.domain_names,
+                                                this.storage.client);
+        });
+    }
+
+    async signClientCsr(parameters)
+    {
+        const signer_storage = this.storage[parameters.signer.type];
+        return await signer_storage.withCert(parameters.signer.name, async (cert) => {
+            return await this.ca.signClientCsr(parameters.name,
+                                               cert,
+                                               parameters.signer.type,
+                                               parameters.digest,
+                                               parameters.lifetime,
+                                               parameters.csr_contents,
+                                               this.storage.server);
         });
     }
 
     async uploadRootCert(storage, parameters)
     {
-        return await this.open_ssl.verifyAndStoreCert(parameters.name,
-                                                      null,
-                                                      null,
-                                                      parameters.cert_file,
-                                                      parameters.key_file,
-                                                      true,
-                                                      parameters.intermediate_only,
-                                                      storage);
+        return await this.ca.verifyAndStoreCert(parameters.name,
+                                                null,
+                                                null,
+                                                parameters.cert_contents,
+                                                parameters.key_contents,
+                                                true,
+                                                parameters.intermediate_only,
+                                                storage);
     }
 
     async uploadSignedCert(storage, create_ca_files, parameters)
     {
         const signer_storage = this.storage[parameters.signer.type];
         return await signer_storage.withCert(parameters.signer.name, async (cert) => {
-            return await this.open_ssl.verifyAndStoreCert(parameters.name,
-                                                          cert,
-                                                          parameters.signer.type,
-                                                          parameters.cert_file,
-                                                          parameters.key_file,
-                                                          create_ca_files,
-                                                          parameters.intermediate_only,
-                                                          storage);
+            return await this.ca.verifyAndStoreCert(parameters.name,
+                                                    cert,
+                                                    parameters.signer.type,
+                                                    parameters.cert_contents,
+                                                    parameters.key_contents,
+                                                    create_ca_files,
+                                                    parameters.intermediate_only,
+                                                    storage);
         });
     }
 };

@@ -1,6 +1,7 @@
 "use strict"
 
-import m from "mithril";
+import Enum from "es6-enum";
+import m    from "mithril";
 
 /**
  * A class that manages a form for Mithril.
@@ -28,6 +29,88 @@ import m from "mithril";
 class Form
 {
     /**
+     * @typedef {Object} Form~ExtraFunctions
+     *
+     * An object containing one or more extra functions that will be used to
+     * customize a form field.
+     *
+     * @property {Form~RenderSuffix} render_suffix
+     *     A function that provides content to be rendered after the form field.
+     *     It should have a signature like () -> {Vnode}.
+     * @property {Form~OnChange} on_change
+     *     A function that will be called when the value for the form field has
+     *     changed.
+     */
+
+    /**
+     * A function that will be called after rendering the form field. This can
+     * be used to display extra information after the field.
+     * @callback Form~RenderSuffix
+     *
+     * @returns {Vnode}  The Mithril Vnode to be displayed.
+     */
+
+    /**
+     * A function that will be called after a form field's value has changed.
+     * @callback Form~OnChange
+     *
+     * @param {*} value
+     *     The new value for the form field.
+     */
+
+    /**
+     * Render an actual form field. This should not worry about rendering all
+     * the extra stuff such as labels, etc.
+     * @callback Form~_FieldFunction
+     *
+     * @param {string} value
+     *     The current value of the form field.
+     * @param {string} id
+     *     The id of the form field.
+     *
+     * @returns {Vnode}  A Mithril Vnode that represents this form field.
+     *
+     * @private
+     */
+
+    /**
+     * Transform the stored value for display by the form field. This is useful
+     * if the value is not stored internally as a string.
+     * @callback Form~_ValueFunction
+     *
+     * @param {*} value
+     *     The value to be transformed.
+     *
+     * @returns {string}  The value transformed for use by the form field.
+     *
+     * @private
+     */
+
+    /**
+     * A value that indicates a form field should be cleared on the next
+     * re-draw.
+     *
+     * This is useful for filed whose value is tracked, but not set, such as
+     * file fields.
+     *
+     * @private
+     */
+    static _clear = Symbol();
+
+
+    /**
+     * An enumeration that describes the oder in which a field should be drawn.
+     *
+     * | Value      | Description                                                         |
+     * | ---------- | ------------------------------------------------------------------- |
+     * | `NORMAL`   | Display a form field in the "normal" oder: label followed by field. |
+     * | `REVERSED` | Display a form field in reversed order: field followed by label.    |
+     *
+     * @private
+     */
+    static _FieldOrder = Enum("NORMAL", "REVERSED");
+
+    /**
      * Create a new form.
      *
      * @param {string} base_id  The id of the form. This is also used as the
@@ -35,12 +118,14 @@ class Form
      */
     constructor(base_id="m_form")
     {
-        this._base_id = base_id;
-        this._fields  = [];
-        this._values  = {};
-        this._readers = {};
-        this._submit  = null;
+        this._base_id     = base_id;
+        this._fields      = [];
+        this._field_specs = {};
+        this._values      = {};
+        this._readers     = {};
+        this._submit      = null;
     }
+
 
     /**
      * Get the values of all of the form's fields' values.
@@ -51,39 +136,123 @@ class Form
      */
     getValues()
     {
-        return {...this._values};
+        let values = {...this._values};
+
+        for (const key in values)
+        {
+            if (Form._clear === values[key])
+            {
+                values[key] = "";
+            }
+        }
+
+        return values;
     }
+
+
+    /**
+     * Get the value for a specific field.
+     *
+     * @param {string} name
+     *     The name of the field whose value is desired.
+     *
+     * @return {*} The field's value.
+     */
+    getValue(name)
+    {
+        let value = this._values[name];
+
+        if (Form._clear === value)
+        {
+            value = "";
+        }
+
+        return value;
+    }
+
+    /**
+     * Set the value for a specific field.
+     *
+     * *Note:* This will trigger a redraw if necessary.
+     *
+     * **Warning:** This will not cause the {@link Form~OnChange `on_change`}
+     *   callback to be called.
+     *
+     * @param {string} name
+     *     The name of the field whose value is to be change.
+     * @param {*} new_value
+     *     The new value to set for the field.
+     */
+    setValue(name, new_value)
+    {
+        if (this._values.hasOwnProperty(name))
+        {
+            if (new_value != this._values[name])
+            {
+                this._values[name] = new_value;
+                m.redraw();
+            }
+        }
+    }
+
+    /**
+     * Clear the value of a specific field.
+     *
+     * In many cases this is the same as calling
+     * {@link Form#setValue Form#setValue()} with `""` for the new value,
+     * however it handles the special cases of checkboxes and files.
+     *
+     * *Note:* This will trigger a redraw.
+     *
+     * **Warning:** This will not cause the {@link Form~OnChange `on_change`}
+     *   callback to be called.
+     *
+     * @param {string} name
+     *     The name of the field to clear.
+     */
+    clearField(name)
+    {
+        if (this._values.hasOwnProperty(name))
+        {
+            this._values[name] = this._field_specs[name].clear_value;
+            m.redraw();
+        }
+    }
+
 
     /**
      * Add a regular `<input>` field.
      *
      * Generally the `type` parameter will accept any value the `<input>`
-     * element will. The exceptions are "checkbox", use the addCheckbox()
-     * function, and "submit", use the setSubmit() function. If the type is
-     * "number" the value will be handled via parseInt(). In addition there is
-     * the special type "list", this renders with a type of "text" but the value
-     * is separated into an Array and concantenated into a comma-seaprated list
+     * element will. The exceptions are "checkbox", use the
+     * {@link Form#addCheckbox addCheckbox()} function; "file", use the
+     * {@link Form#addTextFile addTextFile()} function; and "submit", use the
+     * {@link Form#setSubmit setSubmit()} function. If the type is "number" the
+     * value will be handled via parseInt(). In addition there is the special
+     * type "list", this renders with a type of "text" but the value is
+     * separated into an Array and concantenated into a comma-seaprated list
      * when displayed.
      *
-     * @param {string}   name            The name and if of this field.
-     * @param {string}   display_name    The name to display in the `<label>`
-     *                                   for the user.
-     * @param {string}   initial_value   The value the field should have when
-     *                                   the form is first drawn.
-     * @param {string}   type            The type of the `<input>`, this is used
-     *                                   as the value for the element.
-     * @param {function} extra_function  A function that will be called every
-     *                                   time the filed is drawn. The result of
-     *                                   this function will be placed after the
-     *                                   field and its label.
+     * @param {string} name
+     *     The name and id of this field.
+     * @param {string} display_name
+     *     The name to display in the `<label>` for the user.
+     * @param {string} initial_value
+     *     The value the field should have when the form is first drawn.
+     * @param {string} type
+     *     The type of the `<input>`, this is used as the value for the element.
+     * @param {Form~ExtraFunctions} extra_functions
+     *     Functions that can be used to modify the display or behavior of the
+     *     form field.
      */
-    addInput(name, display_name, initial_value="", type="text", extra_function=null)
+    addInput(name, display_name, initial_value="", type="text", extra_functions={})
     {
         this._values[name] = initial_value;
 
         let value_function   = null;
         let field_function   = null;
         let handler_function = null;
+        let clear_value      = "";
 
 
         if ("number" == type)
@@ -92,9 +261,11 @@ class Form
                 const new_value = parseInt(event.target.value, 10);
                 if (!isNaN(new_value))
                 {
-                    this._values[name] = new_value;
+                    this._setValue(name, new_value);
                 }
             };
+
+            clear_value = 0;
         }
         else if ("list" == type)
         {
@@ -106,13 +277,16 @@ class Form
             };
 
             handler_function = (event) => {
-                this._values[name] = event.target.value.split(/[^-.a-zA-Z0-9]+/);
+                this._setValue(name, event.target.value.split(/[^-.a-zA-Z0-9]+/));
+
             };
+
+            clear_value = [];
         }
         else
         {
             handler_function = (event) => {
-                this._values[name] = event.target.value;
+                this._setValue(name, event.target.value);
             };
         }
 
@@ -125,41 +299,35 @@ class Form
                       onchange: handler_function});
         }
 
-        let field_spec = {display_name: display_name,
-                          name:         name,
-                          field:        field_function};
-        if (value_function)
-        {
-            field_spec.value = value_function;
-        }
-        if (extra_function)
-        {
-            field_spec.extra = extra_function;
-        }
-
-        this._fields.push(field_spec);
+        this._pushField(name,
+                        display_name,
+                        field_function,
+                        Form._FieldOrder.NORMAL,
+                        clear_value,
+                        value_function,
+                        extra_functions);
     }
 
     /**
      * Add an `<input type="checkbox">` field.
      *
-     * @param {string}   name               The name and if of this field.
-     * @param {string}   display_name       The name to display in the `<label>`
-     *                                      for the user.
-     * @param {bool}     initially_checked  Whether or not the checkbox should
-     *                                      be checked when the form is first
-     *                                      drawn.
-     * @param {function} extra_function     A function that will be called every
-     *                                      time the field is drawn. The result
-     *                                      of this function will be placed
-     *                                      after the field and its label.
+     * @param {string} name
+     *     The name and id of this field.
+     * @param {string} display_name
+     *     The name to display in the `<label>` for the user.
+     * @param {bool} initially_checked
+     *     Whether or not the checkbox should be checked when the form is first
+     *     drawn.
+     * @param {Form~ExtraFunctions} extra_functions
+     *     Functions that can be used to modify the display or behavior of the
+     *     form field.
      */
-    addCheckbox(name, display_name, initially_checked, extra_function=null)
+    addCheckbox(name, display_name, initially_checked, extra_functions={})
     {
         this._values[name] = initially_checked;
 
         const handler_function = (event) => {
-            this._values[name] = event.target.checked;
+            this._setValue(name, event.target.checked);
         }
 
         const  field_function = function makeCheckbox(value, id)
@@ -171,16 +339,13 @@ class Form
                       onchange: handler_function});
         }
 
-        let field_spec = {display_name: display_name,
-                          name:         name,
-                          field:        field_function,
-                          reverse:      true};
-        if (extra_function)
-        {
-            field_spec.extra = extra_function;
-        }
-
-        this._fields.push(field_spec);
+        this._pushField(name,
+                        display_name,
+                        field_function,
+                        Form._FieldOrder.REVERSED,
+                        false,
+                        null,
+                        extra_functions);
     }
 
     /**
@@ -240,24 +405,24 @@ class Form
      *   </optgroup>
      *   ```
      *
-     * @param {string}   name            The name and if of this field.
-     * @param {string}   display_name    The name to display in the `<label>`
-     *                                   for the user.
-     * @param {string}   initial_value   The value the field should have when
-     *                                   the form is first drawn.
-     * @param {Array}    options         The options to list in the `<select>`
-     *                                   element.
-     * @param {function} extra_function  A function that will be called every
-     *                                   time the field is drawn. The result of
-     *                                   this function will be placed after the
-     *                                   field and its label.
+     * @param {string} name
+     *     The name and id of this field.
+     * @param {string} display_name
+     *     The name to display in the `<label>` for the user.
+     * @param {string} initial_value
+     *     The value the field should have when the form is first drawn.
+     * @param {Array} options
+     *     The options to list in the `<select>` element.
+     * @param {Form~ExtraFunctions} extra_functions
+     *     Functions that can be used to modify the display or behavior of the
+     *     form field.
      */
-    addSelect(name, display_name, initial_value, options, extra_function=null)
+    addSelect(name, display_name, initial_value, options, extra_functions={})
     {
         this._values[name] = initial_value;
 
         const handler_function = (event) => {
-            this._values[name] = event.target.value;
+            this._setValue(name, event.target.value);
         };
 
         const field_function = function makeSelectField(value, id)
@@ -269,18 +434,78 @@ class Form
                      Form._makeOptions(options));
         }
 
-        let field_spec = {display_name: display_name,
-                          name:         name,
-                          field:        field_function};
-        if (extra_function)
-        {
-            field_spec.extra = extra_function;
-        }
-
-        this._fields.push(field_spec);
+        this._pushField(name,
+                        display_name,
+                        field_function,
+                        Form._FieldOrder.NORMAL,
+                        "",
+                        null,
+                        extra_functions);
     }
 
-    addTextFile(name, display_name, extra_function=null)
+    /**
+     * Add a `<textarea>` field.
+     *
+     * @param {string} name
+     *     The name and id of this field.
+     * @param {string} display_name
+     *     The name to display in the `<label>` for the user.
+     * @param {string} initial_value
+     *     The value the field should have when the form is first drawn.
+     * @param {number} rows
+     *     How tall the text box should be in lines of text.
+     * @param {number} columns
+     *     How wide the text box should be in characters.
+     * @param {Form~ExtraFunctions} extra_functions
+     *     Functions that can be used to modify the display or behavior of the
+     *     form field.
+     */
+    addTextArea(name, display_name, initial_value, rows, columns, extra_functions={})
+    {
+        this._values[name] = initial_value;
+
+        const handler_function = (event) => {
+            this._setValue(name, event.target.value);
+        };
+
+        const field_function = function makeTextArea(value, id)
+        {
+            return m("textarea",
+                     {
+                         id:       id,
+                         onchange: handler_function,
+                         rows:     rows,
+                         cols:     columns
+                     },
+                     value);
+        }
+
+        this._pushField(name,
+                        display_name,
+                        field_function,
+                        Form._FieldOrder.NORMAL,
+                        "",
+                        null,
+                        extra_functions);
+    }
+
+    /**
+     * Add a `<input type="file">` field.
+     *
+     * When the user chooses a file its contents will be read as plain text. The
+     * value provided for this field when {@link Form#getValues getValues()} is
+     * called will be an object with two keys: "name", the name of the file, and
+     * "text", the contents of the file.
+     *
+     * @param {string} name
+     *     The name and id of this field.
+     * @param {string} display_name
+     *     The name to display in the `<label>` for the user.
+     * @param {Form~ExtraFunctions} extra_functions
+     *     Functions that can be used to modify the display or behavior of the
+     *     form field.
+     */
+    addTextFile(name, display_name, extra_functions={})
     {
         this._values[name]  = null;
         this._readers[name] = null;
@@ -297,33 +522,38 @@ class Form
                 let reader = new FileReader();
                 reader.readAsText(files[0]);
                 reader.onload = (event) => {
-                    this._values[name] = {name: files[0].name,
-                                          text: event.target.result};
+                    this._setValue(name, {name: files[0].name,
+                                          text: event.target.result});
                 };
                 this._readers[name] = reader;
             }
             else
             {
-                this._values[name] = null;
+                this._setValue(name, null);
             }
         };
 
         const field_function = function makeFileField(value, id)
         {
-            return m("input", {id: id,
-                               type: "file",
-                               onchange: handler_function});
+            let attributes = {id:       id,
+                              type:     "file",
+                              onchange: handler_function};
+
+            if (Form._clear === value)
+            {
+                attributes.value = "";
+            }
+
+            return m("input", attributes);
         }
 
-        let field_spec = {display_name: display_name,
-                          name:         name,
-                          field:        field_function};
-        if (extra_function)
-        {
-            field_spec.extra = extra_function;
-        }
-
-        this._fields.push(field_spec);
+        this._pushField(name,
+                        display_name,
+                        field_function,
+                        Form._FieldOrder.NORMAL,
+                        Form._clear,
+                        null,
+                        extra_functions);
     }
 
     /**
@@ -346,7 +576,7 @@ class Form
     }
 
     /**
-     * Reander the form for Mithril.
+     * Render the form for Mithril.
      *
      * This function renders the current version of the form for display via
      * Mithril. This should be called from your component's view() function.
@@ -361,24 +591,25 @@ class Form
             const id = `${this._base_id}_${field_spec.name}`;
 
             let value = this._values[field_spec.name];
-            if (field_spec.value)
+            if (Form._clear === value)
             {
-                value = field_spec.value(value);
+                this._values[field_spec.name] = "";
             }
+            value = field_spec.value(value);
 
             let item_class  = null;
             let field_parts = [ m("label",
                                   {class: "field_name", for: id},
                                   field_spec.display_name),
                                 field_spec.field(value, id)];
-            if (field_spec.reverse)
+            if (Form._FieldOrder.REVERSED == field_spec.order)
             {
                 item_class = "reversed";
                 field_parts.reverse();
             }
-            if (field_spec.extra)
+            if (field_spec.render_suffix)
             {
-                field_parts.push(field_spec.extra());
+                field_parts.push(field_spec.render_suffix());
             }
 
             return m("li", {class: item_class}, field_parts);
@@ -396,10 +627,90 @@ class Form
     }
 
     /**
+     * Store the specification for a form field.
+     *
+     * The provided data are used when drawing the form whenever
+     * {@link Form#m Form#m()} is called.
+     *
+     * @param {string} name
+     *     The name and id of the form field.
+     * @param {string} display_name
+     *     The name to display in the `<label>` for the user.
+     * @param {Form~_FieldFunction} field_function
+     *     The function used to render the field.
+     * @param {Form~_FieldOrder} order
+     *     The order in which the parts of the field should be drawn.
+     * @param {*} clear_value
+     *     The value to use when clearing the field.
+     * @param {Form~_ValueFunction|null} value_function
+     *     An optional function for transforming the stored value for use and
+     *     display by the `field_function`.
+     * @param {Form~ExtraFunctions} extra_functions
+     *     User provided extra functions that can affect the display and
+     *     behavior of the form field.
+     *
+     * @private
+     */
+    _pushField(name,
+               display_name,
+               field_function,
+               order,
+               clear_value,
+               value_function,
+               extra_functions)
+    {
+        if (!value_function)
+        {
+            value_function = Form._identity;
+        }
+        let field_spec = {name:         name,
+                          display_name: display_name,
+                          field:        field_function,
+                          order:        order,
+                          clear_value:  clear_value,
+                          value:        value_function};
+        if (extra_functions)
+        {
+            field_spec.render_suffix = extra_functions.render_suffix;
+            if (extra_functions.on_change)
+            {
+                field_spec.on_change = extra_functions.on_change;
+            }
+            else
+            {
+                field_spec.on_change = Form._nop;
+            }
+        }
+
+        this._fields.push(field_spec);
+        this._field_specs[name] = field_spec;
+    }
+
+    /**
+     * Set a new value for a field. This *should always* be used when the value
+     * of a form field changes.
+     *
+     * @param {string} name
+     *     The name of the field whose value change.
+     * @param {*} new_value
+     *     The new value of the field.
+     *
+     * @private
+     */
+    _setValue(name, new_value)
+    {
+        if (new_value != this._values[name])
+        {
+            this._values[name] = new_value;
+            this._field_specs[name].on_change(new_value);
+        }
+    }
+
+    /**
      * A helper function for rendering options for `<select>` elements.
      *
-     * **Warning:** To handle `<optgroup>` elements this function is recursive and
-     * does not protect against cycles in `options`.
+     * **Warning:** To handle `<optgroup>` elements this function is recursive
+     * and does not protect against cycles in `options`.
      *
      * @private
      */
@@ -421,6 +732,28 @@ class Form
                 return m("option", {value: option}, option);
             }
         });
+    }
+
+    /**
+     * A function that does nothing.
+     */
+    static _nop()
+    {
+    }
+
+    /**
+     * An identity function.
+     *
+     * @param {*} value
+     *     The input value, which will be returned.
+     *
+     * @returns {*}  The exact value passed in the `value` parameter.
+     *
+     * @private
+     */
+    static _identity(value)
+    {
+        return value;
     }
 };
 
