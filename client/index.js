@@ -178,10 +178,11 @@ const COUNTRY_OPTIONS = (() => {
     }
     return options;
 })();
+const MAX_SERVER_LIFESPAN = 398;
 const DEFAULT_LIFESPAN = {root:         (365 * 20 + 20 / 4),
                           intermediate: (365 * 5 + 1),
-                          server:       825,
-                          client:       375}
+                          server:       MAX_SERVER_LIFESPAN,
+                          client:       MAX_SERVER_LIFESPAN}
 
 
 class CreateCertForm extends LoadingPage
@@ -321,8 +322,8 @@ class CreateCertForm extends LoadingPage
             lifetime_note = () => {
                 return m("div",
                          {class: "note"},
-                         ("Browsers will reject certificates with lifespans " +
-                          "longer than 825 days."));
+                         (`Browsers will reject certificates with lifespans ` +
+                          `longer than ${MAX_SERVER_LIFESPAN} days.`));
             };
         }
 
