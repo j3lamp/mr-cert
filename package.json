@@ -16,15 +16,17 @@
   },
   "devDependencies": {
     "@mithril-icons/font-awesome": "1.2.0",
+    "@rollup/plugin-commonjs": "17.0.0",
+    "@rollup/plugin-node-resolve": "11.0.1",
     "docdash": "^1.2.0",
     "jsdoc": "~3.6.5",
     "jsdoc-export-default-interop": "^0.3.1",
     "mithril": "2.0.4",
-    "parcel": "1.12.4"
+    "rollup": "2.35.1"
   },
   "scripts": {
-    "build": "parcel build client/index.js",
-    "watch": "parcel watch client/index.js",
+    "build": "rollup --config rollup_conf.js",
+    "watch": "rollup --config rollup_conf.js --watch",
     "start": "node server/index.js --storage-dir test_ca --scratch-dir _scratch_ --port 3000",
     "doc": "jsdoc --configure jsdoc_conf.json",
     "test": "echo \"Error: no test specified\" && exit 1"

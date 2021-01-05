@@ -492,7 +492,6 @@ class CreateCsr extends CreateCertForm
     submit(cert_type)
     {
         let values = this.form.getValues();
-        console.dir(values);
 
         values.key_length = parseInt(values.key_length, 10);
 
