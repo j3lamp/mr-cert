@@ -515,6 +515,31 @@ class CreateCsr extends CreateCertForm
     }
 };
 
+
+function addTextFileArea(form,
+                         file_name,
+                         file_display_name,
+                         area_name,
+                         area_display_name)
+{
+    const onChooseFile = (value) => {
+        form.setValue(area_name, value.text);
+    };
+
+    const onTextChanged = (value) => {
+        form.clearField(file_name);
+    };
+
+    form.addTextFile(file_name, file_display_name, {on_change: onChooseFile});
+    form.addTextArea(area_name,
+                     area_display_name,
+                     "",
+                     19,
+                     70,
+                     {on_change: onTextChanged});
+}
+
+
 class SignCsr extends CreateCertForm
 {
     isSigningForm()
@@ -542,7 +567,11 @@ class SignCsr extends CreateCertForm
     {
         super.createForm(cert_type, is_signing);
 
-        this.form.addTextArea("csr_contents", "Certificate Signing Request", "", 18, 70);
+        addTextFileArea(this.form,
+                        "csr_file",
+                        "CSR File",
+                        "csr_contents",
+                        "Certificate Signing Request");
     }
 
     submit(cert_type)
@@ -554,6 +583,7 @@ class SignCsr extends CreateCertForm
             {
                 body.signer = JSON.parse(body.signer);
             }
+            delete body.csr_file;
 
             this.whileLoading(
                 m.request({method: "POST",
@@ -643,14 +673,22 @@ class UploadCert extends LoadingPage
         {
             this.form.addSelect("signer", "Signing Certificate", "", signing_options);
         }
-        this.form.addTextFile("cert_file", "Certificate File");
-        this.form.addTextFile("key_file",  "Private Key");
         if ("root" == cert_type)
         {
             this.form.addCheckbox("intermediate_only",
                                   "Only use to sign intermediate certificates",
                                   false);
         }
+        addTextFileArea(this.form,
+                        "cert_file",
+                        "Certificate File",
+                        "cert_contents",
+                        "Certificate");
+        addTextFileArea(this.form,
+                        "key_file",
+                        "Private Key File",
+                        "key_contents",
+                        "Private Key");
 
         this.form.setSubmit("Upload Certificate",
                             () => { return this.submit(cert_type) })
@@ -665,14 +703,8 @@ class UploadCert extends LoadingPage
             {
                 body.signer = JSON.parse(body.signer);
             }
-            if (body.cert_file)
-            {
-                body.cert_file = body.cert_file.text;
-            }
-            if (body.key_file)
-            {
-                body.key_file  = body.key_file.text;
-            }
+            delete body.cert_file;
+            delete body.key_file
 
             this.whileLoading(
                 m.request({method: "POST",

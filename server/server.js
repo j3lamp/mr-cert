@@ -384,8 +384,8 @@ module.exports = class Server
         return await this.ca.verifyAndStoreCert(parameters.name,
                                                 null,
                                                 null,
-                                                parameters.cert_file,
-                                                parameters.key_file,
+                                                parameters.cert_contents,
+                                                parameters.key_contents,
                                                 true,
                                                 parameters.intermediate_only,
                                                 storage);
@@ -398,8 +398,8 @@ module.exports = class Server
             return await this.ca.verifyAndStoreCert(parameters.name,
                                                     cert,
                                                     parameters.signer.type,
-                                                    parameters.cert_file,
-                                                    parameters.key_file,
+                                                    parameters.cert_contents,
+                                                    parameters.key_contents,
                                                     create_ca_files,
                                                     parameters.intermediate_only,
                                                     storage);
